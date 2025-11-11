@@ -10,7 +10,6 @@ from langchain_core.prompts import ChatPromptTemplate
 from langchain_google_genai import ChatGoogleGenerativeAI
 import json
 from dotenv import load_dotenv
-from jira_client import JiraClient
 from logger import Logger
 
 load_dotenv()

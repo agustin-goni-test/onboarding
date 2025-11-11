@@ -7,6 +7,7 @@ load_dotenv()
 
 # Config parameters
 LOG_DIR = os.getenv("LOG_DIR", "log")
+DEBUG = os.getenv("DEBUG")
 LEVEL = logging.DEBUG if os.getenv("DEBUG") == "true" else logging.INFO
 
 # Logger class, singleton implementation

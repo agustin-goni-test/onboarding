@@ -9,6 +9,7 @@ from langchain.agents import create_agent # No AgentExecutor present. Is that a 
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_google_genai import ChatGoogleGenerativeAI
 import json
+import re
 from dotenv import load_dotenv
 from logger import Logger
 
@@ -24,7 +25,8 @@ class InformationNode(TypedDict):
 class DocumentCaptureState(TypedDict):
     documents: List[Dict[str, Any]] # List of documents 
     fields_to_extract: Dict[str, str]
-    extracted_information: Dict[str, InformationNode]
+    extracted_information: Dict[str, Dict[str, InformationNode]]  # This stores a dictionary that holds a result for each document
+    results: Dict[str, InformationNode]
     iteration: int
     max_iterations: int
     confidence_high: bool
@@ -36,6 +38,7 @@ class DocumentCaptureAgent:
         self.llm = llm
         self.max_iterations = max_iterations
         self.logger = Logger()
+        self.graph = self._build_graph()
         
 
     def _build_graph(self) -> StateGraph:
@@ -48,9 +51,6 @@ class DocumentCaptureAgent:
         workflow.add_node("iterate_and_extract", self.iterate_and_extract)
         workflow.add_node("curate_and_disambiguate", self.curate_and_disambiguate)
         workflow.add_node("enough_confidence", self.enough_confidence)
-        workflow.add_node("offer_data_to_user", self.offer_data_to_user)
-        workflow.add_node("confirm_and_adjust", self.confirm_or_adjust)
-        workflow.add_node("confirm_or_adjust", self.confirm_or_adjust)
         workflow.add_node("enough_information", self.enough_information)
 
         workflow.add_node("final_approval", self.final_approval)
@@ -59,28 +59,28 @@ class DocumentCaptureAgent:
         workflow.set_entry_point("iterate_and_extract")
 
         # Set the edges between nodes
-        workflow.add_edges("iterate_and_extract", "curate_and_disambiguate")
-        workflow.add_edges("curate_and_disambiguate", "enough_confidence")
-        workflow.add_edges("offer_data_to_user", "confirm_and_adjust")
-        workflow.add_edges("confirm_or_adjust", "enough_confidence")
+        workflow.add_edge("iterate_and_extract", "curate_and_disambiguate")
+        workflow.add_edge("curate_and_disambiguate", "enough_confidence")
+        workflow.add_edge("enough_confidence", "enough_information")
+        workflow.add_edge("enough_information", "final_approval")
         
         # This is probably not quite right
-        workflow.add_edges("final_approval", END)
+        workflow.add_edge("final_approval", END)
 
         
         # Add conditional edges
-        workflow.add_conditional_edges(
-            "enough_confidence",
-            self.enough_confidence,
-            {
-                "confident": "confirm_and_adjust",
-                "not_confident": "offer_data_to_user"
-            }
-        )
+        # workflow.add_conditional_edges(
+        #     "enough_confidence",
+        #     self.enough_confidence,
+        #     {
+        #         "confident": "confirm_and_adjust",
+        #         "not_confident": "offer_data_to_user"
+        #     }
+        # )
 
         workflow.add_conditional_edges(
             "enough_information",
-            self.enough_information,
+            self.route_sufficient_info,
             {
                 "sufficient": "final_approval",
                 "not_sufficient": "iterate_and_extract"
@@ -90,28 +90,111 @@ class DocumentCaptureAgent:
         return workflow.compile()
 
     def iterate_and_extract(self, state: DocumentCaptureState) -> Dict[str, Any]:
-        document = state["document"]
-        questions = state["questions"]
+        self.logger.info("---STATE: ITERATE AND EXTRACT---")
 
-        extraction_prompt = ChatPromptTemplate.from_messages(
-            [
-                SystemMessage(
-                    "You are an AI assistant tasked with extracting information from a document. "
-                    "For each question, determine if the information is present in the document. "
-                    "If present, extract the value, provide a brief explanation of where it was found, "
-                    "and assign a confidence score (1-100). If not present, set 'match' to false, "
-                    "and leave 'value', 'explanation', and 'confidence' as null."
-                    "Return the results as a JSON object where keys are the questions."
-                ),
-                HumanMessage(
-                    f"Document:\n{document}\n\nQuestions:\n{json.dumps(questions, indent=2)}\n\n"
-                    "Please extract the information in JSON format:"
-                ),
-            ]
-        )
+        documents = state["documents"]
+        fields = state["fields_to_extract"]
+        state["extracted_information"] = {}
 
-        extractor = extraction_prompt | self.llm.bind(response_format={"type": "json_object"})
-        response = extractor.invoke({"document": document, "questions": questions})
+        for document in documents:
+            document_text = document["content"]
+            prompt = self.build_extraction_prompt(document_text, fields)
+
+            response = self.llm.invoke(prompt)
+            json_response = self.clean_and_parse_json(response.content)
+
+
+            state["extracted_information"][document["id"]] = json_response
+
+
+        return state
+            
+
+    def clean_and_parse_json(self, text: str):
+    # Remove markdown fences like ```json ... ```
+        cleaned = re.sub(r"```[a-zA-Z]*", "", text)   # remove ```json or ``` or ```xyz
+        cleaned = cleaned.replace("```", "")          # remove closing fences
+        cleaned = cleaned.strip()
+        return json.loads(cleaned)
+            
+
+
+    def build_extraction_prompt(self, document, fields_dict):
+        system_text = '''
+        Eres un asistente de extracción de información.
+
+        Vas a recibir 2 entradas:
+        1) Un documento, que puede consistir en un text o la decodificación OCR del contenido de una imagen.
+        2) Un diccionario de campos para extraer. Cada campo del diccionario contiene un nombre y la explicación de lo que hay que extraer.
+        
+        Por cada campo DEBES determinar si el documento contiene o no la información buscada.
+
+        Retorna un diccionario JSON cuyas claves son nombres de campo y cuyos valores son objetos con esta estructura:
+        {
+            "match": boolean,
+            "value": string | null,
+            "explanation": string | null,
+            "confidence": int (0-100) | null
+        }
+
+        Rules:
+        - match=true only if the field is **explicitly present** in the document.
+        - If match=false, then set value=null, explanation=null, confidence=null.
+        - explanation must reference **where** or **how** the model inferred the value
+        (e.g., “Found in line about business owner: ‘Razon social:…’”).
+        - confidence is 0–100. Use higher confidence when text is direct and explicit.
+        - If inferred but not explicit, match=true but confidence must be <70 and explanation must state inference.
+        - DO NOT hallucinate values not suggested in the text.
+        - Answer only JSON. No prose outside JSON.
+        '''
+
+        user_text = f'''
+        DOCUMENT:
+        {document}
+
+        FIELDS TO EXTRACT:
+        {json.dumps(fields_dict, indent=2)}
+        '''
+
+        # content_blocks = []
+
+        # # Convert the document into multi modal blocks
+        # # First case, document is PDF (text)
+        # if isinstance(document, str):
+        #     content_blocks.append({
+        #         "type": "text",
+        #         "text": document
+        #     })
+
+        # elif isinstance(document, list):
+        #     for part in document:
+        #         if "text" in part:
+        #             content_blocks.append({
+        #                 "type": "text",
+        #                 "text": part["text"]
+        #             })
+
+        #         elif "inLineData" in part:
+        #             img = part["inLineData"]
+        #             content_blocks.append({
+        #                 "type": "image",
+        #                 "source": {
+        #                     "type": "base64",
+        #                     "media_type": img["mimeType"],
+        #                     "data": img["data"]
+        #                 }
+        #             })
+                   
+
+        # content_blocks.append({
+        #     "type": "text",
+        #     "text": f"FIELDS TO EXTRACT:\n{json.dumps(fields_dict, indent=2)}"
+        # })        
+
+        return [
+            SystemMessage(system_text),
+            HumanMessage(user_text)
+        ]
 
 
     def curate_and_disambiguate(self, state: DocumentCaptureState) -> DocumentCaptureState:
@@ -119,20 +202,122 @@ class DocumentCaptureAgent:
         self.logger.info("---STATE: CURATE AND DISAMBIGUATE---")
         # TODO: Implement logic to review `extracted_data` for consistency,
         # merge partial results, or resolve ambiguities. This could be another LLM call.
+
+        extracted = state.get("extracted_information", {})
+        fields = state.get("fields_to_extract", {})
+        results = {}
+
+        # Iterate over all fields to extract
+        for field_name in fields.keys():
+            hits = []
+
+            # Collect hits across documents
+            for doc_id, doc_fields in extracted.items():
+                field_data = doc_fields.get(field_name)
+                if field_data and field_data.get("match"):
+                    hits.append(field_data)
+
+            # If no match anywhere
+            if not hits:
+                results[field_name] = {
+                    "match": False,
+                    "value": None,
+                    "explanation": None,
+                    "confidence": None
+                }
+                continue
+
+            # If there were hits, find out how many
+            # Start with only one hit
+            if len(hits) == 1:
+                results[field_name] = hits[0]
+                continue
+
+            # More than one hit, check if they are all equal or different
+            unique_values = { h.get("value") for h in hits }
+
+            # If only one distinct value found (all equal)
+            if len(unique_values) == 1:
+                value = hits[0].get("value")
+
+                # Average confidences
+                confidences = [ h.get("confidence") for h in hits ]
+                average_confidence = sum(confidences) / len(confidences)
+
+                # Merge explanations
+                explanations = [ h.get("explanation") for h in hits ]
+
+                results[field_name] = {
+                    "match": True,
+                    "value": value,
+                    "explanation": ", ".join(explanations),
+                    "confidence": int(average_confidence)
+                }
+
+            else:
+                # There were different values
+                confidences = [ h.get("confidence") for h in hits ]
+                min_confidence = min(confidences)
+
+                # Store all conflicting values
+                results[field_name] = {
+                    "match": True,
+                    "value": [ h.get("value") for h in hits ],
+                    "explanation": [ h.get("explanation") for h in hits ], 
+                    "confidence": int(min_confidence)
+                }
+
+        state["results"] = results
         return state
+
+
     
     def enough_confidence(self, state: DocumentCaptureState) -> DocumentCaptureState:
         '''Should prompt user if confidence is low'''
         self.logger.info("---STATE: ENOUGH CONFIDENCE---")
-        confidence_threshold = 80
-        is_confident = True
-        for field, data in state["extracted_data"].items():
-            if data.get("match") and data.get("confidence", 0) < confidence_threshold:
-                self.logger.warn(f"Low confidence for field '{field}' ({data.get('confidence')}%).")
-                is_confident = False
-                break
-        state["confidence_is_high"] = is_confident
+
+        low_confidence = self.find_low_confidence_fields(state)
+
+        if not low_confidence:
+            print("Ningún campo con poca confianza...")
+            return state
+        
+        for item in low_confidence:
+            field = item["field"]
+            value = item["value"]
+            confidence = item["confidence"]
+
+            print(f"Campo: {field}, Valor: {value}, Confianza: {confidence}")
+
+            new_value = input("Confirmar el valor (ENTER) o ingresar uno nuevo")
+
+            if new_value.strip():
+                state["results"][field]["value"] = new_value.strip()
+
+            state["results"][field]["confidence"] = 100
+           
         return state
+
+    
+
+    def find_low_confidence_fields(self, state, threshold: int = 80):
+        low = []
+
+        for field, result in state["results"].items():
+            if not result:
+                continue
+
+            value = result.get("value")
+            confidence = result.get("confidence")
+
+            if confidence and confidence < threshold:
+                low.append({
+                    "field": field,
+                    "value": value,
+                    "confidence": confidence
+                })
+
+        return low
     
 
     def confirm_or_adjust(self, state: DocumentCaptureState) -> DocumentCaptureState:
@@ -145,18 +330,44 @@ class DocumentCaptureAgent:
 
     def enough_information(self, state: DocumentCaptureState) -> DocumentCaptureState:
         self.logger.info("---STATE: ENOUGH INFORMATION---")
-        if state["iteration"] >= state["max_iterations"]:
-            self.logger.warn("Max iterations reached.")
-            state["information_is_sufficient"] = True
-            return state
 
-        is_sufficient = all(data.get("match") for data in state["extracted_data"].values())
-        state["information_is_sufficient"] = is_sufficient
+        missing = []
+        state["iteration"] += 1
+
+        for field_name, field_info in state["results"].items():
+            if not field_info.get("match"):
+                missing.append(field_name)
+
+        if missing:
+            state["sufficient_info"] = False
+        
+        else:
+            state["sufficient_info"] = True
+
         return state
+    
+
+    def route_sufficient_info(self, state: DocumentCaptureState) -> str:
+        self.logger.info("---STATE: ROUTE SUFFICIENT INFO---")
+        is_sufficient = "sufficient" if state["sufficient_info"] else "not_sufficient"
+        return is_sufficient
+        
+    
+
+
 
     def final_approval(self, state: DocumentCaptureState) -> DocumentCaptureState:
         '''This is where the user signs off on the data'''
         self.logger.info("---STATE: FINAL APPROVAL---")
+
+        results = state["results"]
+
+        print("Lista de datos obtenidos:")
+        for field, result in results.items():
+            print(f"{field}: {result}")
+
+
+
         return state
     
 
@@ -164,6 +375,13 @@ class DocumentCaptureAgent:
         '''This is were we offer a lower confident option to the user for clarification'''
         self.logger.info("---STATE: OFFER DATA TO USER---")
         return state
+    
+
+    def do_capture(self, initial_state: DocumentCaptureState) -> DocumentCaptureState:
+        final_state = self.graph.invoke(initial_state)
+        return final_state
+
+
     
 
         
