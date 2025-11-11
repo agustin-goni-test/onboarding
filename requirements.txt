@@ -1,0 +1,1 @@
+pip install python-dotenv langchain langchain_core langggraph langchain-google-genai
