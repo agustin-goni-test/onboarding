@@ -22,6 +22,7 @@ class InformationNode(TypedDict):
     value: Optional[str]
     explanation: Optional[str]
     confidence: Optional[int]
+    has_conflict: Optional[bool]
 
 
 class DocumentCaptureState(TypedDict):
@@ -92,24 +93,53 @@ class DocumentCaptureAgent:
         return workflow.compile()
 
     def iterate_and_extract(self, state: DocumentCaptureState) -> Dict[str, Any]:
+        '''Obtain information from the pre loaded documents'''
         self.logger.info("---STATE: ITERATE AND EXTRACT---")
 
+        # Obtain values for processing from the state
         documents = state["documents"]
-        fields = state["fields_to_extract"]
-        state["extracted_information"] = {}
+        original_fields = state["fields_to_extract"]
+        # state["extracted_information"] = {}
 
+        # Prune the field list if some have already been found (iteration)
+        fields = self.get_fields_list(original_fields, state)
+
+        # Use only the pruned fields in this iteration.
+        # If it's the first iteration, it includes all the fields.
+        state["fields_to_extract"] = fields
+        
+        # Process each document
         for document in documents:
+            self.logger.info(f"Procesando documento {document["filename"]}...")
+
+            # Get the document content and build the prompt with the text and the
+            # list of fields
             document_text = document["content"]
             prompt = self.build_extraction_prompt(document_text, fields)
 
+            # Invoke the LLM for inference and clean out the response
             response = self.llm.invoke(prompt)
             json_response = self.clean_and_parse_json(response.content)
 
+            # Update the document information to indicate it's been processed
+            document["processed_state"] = "processed"
 
+            # Store the results
             state["extracted_information"][document["id"]] = json_response
 
-
         return state
+    
+    def get_fields_list(self, original_fields: Dict[str, str], state: DocumentCaptureState) -> Dict[str, str]:
+        '''Creates a new list of fields to extract based on what's already been found.'''
+        results = state.get("results", {})
+        remaining_fields = {}
+
+        # Find if the field name is already included as a match in the results
+        for field_name, description in original_fields.items():
+            # Keep the field if it's not in results or if it is but wasn't found (match: False)
+            if field_name not in results or not results[field_name].get("match"):
+                remaining_fields[field_name] = description
+        return remaining_fields
             
 
     def clean_and_parse_json(self, text: str):
@@ -209,9 +239,14 @@ class DocumentCaptureAgent:
         fields = state.get("fields_to_extract", {})
         results = {}
 
+        # existing_results = state.get("results", {})
+        # new_results = {}
+
+
         # Iterate over all fields to extract
         for field_name in fields.keys():
             hits = []
+            # existing_field_result = existing_results.get(field_name)
 
             # Collect hits across documents
             for doc_id, doc_fields in extracted.items():
@@ -225,7 +260,8 @@ class DocumentCaptureAgent:
                     "match": False,
                     "value": None,
                     "explanation": None,
-                    "confidence": None
+                    "confidence": None,
+                    "has_conflict": False
                 }
                 continue
 
@@ -253,7 +289,8 @@ class DocumentCaptureAgent:
                     "match": True,
                     "value": value,
                     "explanation": ", ".join(explanations),
-                    "confidence": int(average_confidence)
+                    "confidence": int(average_confidence),
+                    "has_conflict": False
                 }
 
             else:
@@ -266,7 +303,8 @@ class DocumentCaptureAgent:
                     "match": True,
                     "value": [ h.get("value") for h in hits ],
                     "explanation": [ h.get("explanation") for h in hits ], 
-                    "confidence": int(min_confidence)
+                    "confidence": int(min_confidence),
+                    "has_conflict": True
                 }
 
         state["results"] = results
