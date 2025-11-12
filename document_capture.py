@@ -62,7 +62,6 @@ class DocumentCaptureAgent:
         workflow.add_edge("iterate_and_extract", "curate_and_disambiguate")
         workflow.add_edge("curate_and_disambiguate", "enough_confidence")
         workflow.add_edge("enough_confidence", "enough_information")
-        workflow.add_edge("enough_information", "final_approval")
         
         # This is probably not quite right
         workflow.add_edge("final_approval", END)

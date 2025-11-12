@@ -1,7 +1,8 @@
 import os
 import base64
 import io
-from typing import List, Dict, Any
+import glob
+from typing import List, Dict, Any, Optional
 from pypdf import PdfReader
 from document_capture import DocumentCaptureState, DocumentCaptureAgent
 from langchain_google_genai import ChatGoogleGenerativeAI
@@ -96,84 +97,139 @@ def prepare_initial_state() -> DocumentCaptureState:
     '''
 
     SOURCES_DIR = os.getenv("BUSINESS_INFO_FOLDER", "sources")
-    PDF_PATH = os.path.join(SOURCES_DIR, "document.pdf")
-    IMAGE_PATH = os.path.join(SOURCES_DIR, "image.jpg")
+    # PDF_PATH = os.path.join(SOURCES_DIR, "document.pdf")
+    # IMAGE_PATH = os.path.join(SOURCES_DIR, "image.jpg")
 
     document_list: List[Dict[str, Any]] = []
 
-    # Extract text from PDF file
-    pdf_text = pdf_to_text(PDF_PATH)
-    if pdf_text:
-        pdf_document = {
-            "id": "pdf_document_1",
-            "filename": os.path.basename(PDF_PATH),
-            "type": "pdf_text",
-            "content": [
-                {"text": "Extrae todos los términos buscados del siguiente texto."},
-                {"text": pdf_text} 
-            ]
+    logger.info(f"Iniciando análisis de archivos desde ruta {SOURCES_DIR}")
 
-        }
+    for file_path in glob.glob(os.path.join(SOURCES_DIR, "*")):
+        logger.info(f"Procesando archivo {file_path}")
+        document: Optional[Dict[str, Any]] = None
+        try:
+            if file_path.lower().endswith(".pdf"):
+                logger.info(f"Archivo {file_path} es PDF, leyendo texto...")
+                document = _process_pdf_document(file_path)
+            elif file_path.lower().endswith((".jpg", ".jpeg", ".png")):
+                logger.info(f"Archivo {file_path} es imagen, extrayendo texto por OCR...")
+                document = _process_image_document(file_path)
+            else:
+                logger.warning(f"Tipo de archivo no soportado: {file_path}")
+                continue
 
-        # Add to document list        
-        document_list.append(pdf_document)
+            if document:
+                logger.info("Extracción de texto exitosa...")
+                document_list.append(document)
 
-    # Extract info from image
-    ocr_text  = ocr_base64_image(IMAGE_PATH)
-    if ocr_text:
-        image_document = {
-            "id": "image_document_1",
-            "filename": os.path.basename(IMAGE_PATH),
-            "type": "text",
-            "content": [
-                {"text": "Extrae todos los términos buscados del siguiente texto."},
-                {"text": ocr_text} 
-            ]
-        }
+        except Exception as e:
+            logger.error(f"Error procesando archivo {file_path}: {e}")
+            continue
 
-        document_list.append(image_document)
 
-        # I'm only including this so I don't forget. The ACTUAL fields will be part of the state
-        fields = {
-            "rut_comercio": "El RUT que identifica la identidad del comercio o empresa que se afilia",
-            "razon social": "Nombre legal o razón social del comercio, asociado al RUT registrado",
-            "nombre_fantasía": "Nombre de fantasía por el que el comercio es conocido",
-            "direccion_comercio": "Dirección principal del comercio",
-            "correo_comercio": "Correo central de comunicaciones asociado al comercio",
-            "telefono_comercio": "Teléfono central asociado al comercio",
-            "nombre_contacto": "Nombre del contacto principal relacionado a la afiliación del comercio",
-            "num_serie": "Número de serie del documento de identidad del contacto principal",
-            "correo_contacto": "Dirección de email asociada al contacto principal",
-            "telefono_contacto": "Número de teléfono asociado al contacto principal",
-            "representante_legal": "Representante legal del comercio o sociedad",
-            "constitucion": "Accionistas del comercio y porcentaje de la operación que tengan",
-            "num_cuenta": "Número de cuenta identificada para el comercio",
-            "tipo_cuenta": "Tipo de la cuenta declarada por el comercio",
-            "banco": "Banco al que pertenece la cuenta encontrada para el comercio",
-            "nombre_cuenta": "Nombre del titular de la cuenta. Si no existe, asumir que es el representante legal, con confianza de 50"
-            # ... other fields
-        }
 
-        initial_state: DocumentCaptureState = {
-            "documents": document_list,
-            "fields_to_extract": fields,
-            "extracted_information": {},
-            "results": {},
-            "iteration": 0,
-            "max_iterations": 5,
-            "confidence_high": False,
-            "sufficient_info": False    
-        }
+    # pdf_document = _process_pdf_document(PDF_PATH)
 
-        logger.info("Estado inicial construido correctamente...")
+    # # Add to document list        
+    # document_list.append(pdf_document)
 
-        return initial_state
+    # image_document = _process_image_document(IMAGE_PATH)
+
+    # # Add to document list
+
+    # document_list.append(image_document)
+
+    # I'm only including this so I don't forget. The ACTUAL fields will be part of the state
+    fields = {
+        "rut_comercio": "El RUT que identifica la identidad del comercio o empresa que se afilia",
+        "razon social": "Nombre legal o razón social del comercio, asociado al RUT registrado",
+        "nombre_fantasía": "Nombre de fantasía por el que el comercio es conocido",
+        "direccion_comercio": "Dirección principal del comercio",
+        "correo_comercio": "Correo central de comunicaciones asociado al comercio",
+        "telefono_comercio": "Teléfono central asociado al comercio",
+        "nombre_contacto": "Nombre del contacto principal relacionado a la afiliación del comercio",
+        "num_serie": "Número de serie del documento de identidad del contacto principal",
+        "correo_contacto": "Dirección de email asociada al contacto principal",
+        "telefono_contacto": "Número de teléfono asociado al contacto principal",
+        "representante_legal": "Representante legal del comercio o sociedad",
+        "constitucion": "Accionistas del comercio y porcentaje de la operación que tengan",
+        "num_cuenta": "Número de cuenta identificada para el comercio",
+        "tipo_cuenta": "Tipo de la cuenta declarada por el comercio",
+        "banco": "Banco al que pertenece la cuenta encontrada para el comercio",
+        "nombre_cuenta": "Nombre del titular de la cuenta. Si no existe, asumir que es el representante legal, con confianza de 50"
+        # ... other fields
+    }
+
+    initial_state: DocumentCaptureState = {
+        "documents": document_list,
+        "fields_to_extract": fields,
+        "extracted_information": {},
+        "results": {},
+        "iteration": 0,
+        "max_iterations": 5,
+        "confidence_high": False,
+        "sufficient_info": False    
+    }
+
+    logger.info("Estado inicial construido correctamente...")
+
+    return initial_state
     
+
+def _process_pdf_document(pdf_path: str) -> Optional[Dict[str, Any]]:
+    '''Returns the representation of a PDF document for processing'''
+    try:
+        # Extract text from PDF file
+        pdf_text = pdf_to_text(pdf_path)
+
+        # If text is available, build the document info and return it
+        if pdf_text:
+            pdf_document = {
+                "id": f"pdf_document_{os.path.basename(pdf_path)}",
+                "filename": os.path.basename(pdf_path),
+                "type": "pdf_text",
+                "content": [
+                    {"text": "Extrae todos los términos buscados del siguiente texto."},
+                    {"text": pdf_text} 
+                ]
+            }
+            return pdf_document
         
+        # If no text could be extracted, raise exception
+        raise Exception("No fue posible extraer el texto del PDF.")
+    
+    except Exception as e:
+        raise Exception(f"El documento PDF no pudo ser procesado: {e}")
+    
+
+def _process_image_document(image_path: str) -> Optional[Dict[str, Any]]:
+    '''Returns the representation of an image document for processing'''
+    try:
+        # Extract info from image using OCR
+        ocr_text  = ocr_base64_image(image_path)
+        
+        # If we could extract the text, we process the document info
+        if ocr_text:
+            image_document = {
+                "id": "image_document_1",
+                "filename": os.path.basename(image_path),
+                "type": "text",
+                "content": [
+                    {"text": "Extrae todos los términos buscados del siguiente texto."},
+                    {"text": ocr_text} 
+                ]
+            }
+            return image_document
+        
+        # If not, we raise exception and return
+        raise Exception("No fue posible extraer el texto de la imagen.")
+    
+    except Exception as e:
+        raise Exception(f"El documento de imagen no pudo ser procesado: {e}")
+    
+
+    
 
 
 if __name__ == "__main__":
     main()
-
-
-
