@@ -21,6 +21,12 @@ class DocumentHub:
         self.logger.info(f"Iniciando análisis de archivos desde ruta {self.source_folder}")
 
         for file_path in glob.glob(os.path.join(self.source_folder, "*")):
+
+            # Check if file had already been loaded before. If so, ignore
+            if any(doc["filename"] == os.path.basename(file_path) for doc in self.document_list):
+                self.logger.info(f"Archivo {file_path} ya fue procesado anteriormente... ignorando...")
+                continue
+
             self.logger.info(f"Procesando archivo {file_path}")
             document: Optional[Dict[str, Any]] = None
             try:

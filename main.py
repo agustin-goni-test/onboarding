@@ -18,6 +18,8 @@ logger = Logger()
 def main():
     '''Main logic here'''
 
+    logger.debug("We are in DEBUG mode...")
+
     # Create LLM for the agent
     llm = create_llm()
     
@@ -27,7 +29,7 @@ def main():
 
     # Find the final state (invoke the agent)
     final_state = agent.do_capture(initial_graph_state)
-    print(final_state)
+    print("\n\nFin de la ejecución...\n")
         
 
 def create_llm() -> ChatGoogleGenerativeAI:

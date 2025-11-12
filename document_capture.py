@@ -26,8 +26,9 @@ class InformationNode(TypedDict):
 
 
 class DocumentCaptureState(TypedDict):
-    documents: List[Dict[str, Any]] # List of documents 
-    fields_to_extract: Dict[str, str]
+    documents: List[Dict[str, Any]] # List of documents
+    all_fields: Dict[str, str] # List of all fields in the discovery
+    fields_to_extract: Dict[str, str]  # Only the fields active for the iteration
     extracted_information: Dict[str, Dict[str, InformationNode]]  # This stores a dictionary that holds a result for each document
     results: Dict[str, InformationNode]
     iteration: int
@@ -96,6 +97,9 @@ class DocumentCaptureAgent:
         '''Obtain information from the pre loaded documents'''
         self.logger.info("---STATE: ITERATE AND EXTRACT---")
 
+        # if state["iteration"] > 0:
+        #     self.doc_hub.load_documents()
+
         # Obtain values for processing from the state
         documents = state["documents"]
         original_fields = state["fields_to_extract"]
@@ -108,8 +112,14 @@ class DocumentCaptureAgent:
         # If it's the first iteration, it includes all the fields.
         state["fields_to_extract"] = fields
         
+        # Recycle information extraction
+        state["extracted_information"] = {}
+        
         # Process each document
         for document in documents:
+            if document["processed_state"] != "pending":
+                continue
+
             self.logger.info(f"Procesando documento {document["filename"]}...")
 
             # Get the document content and build the prompt with the text and the
@@ -177,6 +187,7 @@ class DocumentCaptureAgent:
         - confidence is 0–100. Use higher confidence when text is direct and explicit.
         - If inferred but not explicit, match=true but confidence must be <70 and explanation must state inference.
         - DO NOT hallucinate values not suggested in the text.
+        - If not all conditions for a value are present, confidence must be <70.
         - Answer only JSON. No prose outside JSON.
         '''
 
@@ -236,17 +247,32 @@ class DocumentCaptureAgent:
         # merge partial results, or resolve ambiguities. This could be another LLM call.
 
         extracted = state.get("extracted_information", {})
-        fields = state.get("fields_to_extract", {})
-        results = {}
+        fields = state.get("all_fields", {})
+        # results = {}
 
-        # existing_results = state.get("results", {})
-        # new_results = {}
+        existing_results = state.get("results", {})
+        new_results = {}
 
 
         # Iterate over all fields to extract
         for field_name in fields.keys():
+            # Find if the field belonged to the previous results
+            existing_field_result = existing_results.get(field_name)
+
+            # Check if it belonged to the previous results and it was a match
+            # OPTIONALLY: check for conflicts or sufficient confidence
+            if (existing_field_result and
+                existing_field_result.get("match") and
+                not existing_field_result.get("has_conflict") and   # Do we really need to check for conflicts here? 
+                existing_field_result.get("confidence", 0) >= 10):  # This last condition might not go
+                self.logger.info(f"Campo {field_name} ya fue procesado con suficiente confianza")
+                
+                # If everything checks out, move this existing result to the new result
+                new_results[field_name] = existing_field_result
+                continue
+
+            # Otherwise, process this field with the new extraction data
             hits = []
-            # existing_field_result = existing_results.get(field_name)
 
             # Collect hits across documents
             for doc_id, doc_fields in extracted.items():
@@ -254,21 +280,29 @@ class DocumentCaptureAgent:
                 if field_data and field_data.get("match"):
                     hits.append(field_data)
 
-            # If no match anywhere
+            # If no match anywhere in the new extraction
             if not hits:
-                results[field_name] = {
-                    "match": False,
-                    "value": None,
-                    "explanation": None,
-                    "confidence": None,
-                    "has_conflict": False
-                }
+                # If there was an existing result, keep it
+                if existing_field_result:
+                    new_results[field_name] = existing_field_result
+                else:
+                    # If it didn't exist before, create it in the new results
+                    new_results[field_name] = {
+                        "match": False,
+                        "value": None,
+                        "explanation": None,
+                        "confidence": None,
+                        "has_conflict": False
+                    }
                 continue
 
+            # If we get to this point, the field was found
+            self.logger.debug(f"Campo {field_name} encontrado...")
+            
             # If there were hits, find out how many
             # Start with only one hit
             if len(hits) == 1:
-                results[field_name] = hits[0]
+                new_results[field_name] = hits[0]
                 continue
 
             # More than one hit, check if they are all equal or different
@@ -285,7 +319,7 @@ class DocumentCaptureAgent:
                 # Merge explanations
                 explanations = [ h.get("explanation") for h in hits ]
 
-                results[field_name] = {
+                new_results[field_name] = {
                     "match": True,
                     "value": value,
                     "explanation": ", ".join(explanations),
@@ -299,7 +333,7 @@ class DocumentCaptureAgent:
                 min_confidence = min(confidences)
 
                 # Store all conflicting values
-                results[field_name] = {
+                new_results[field_name] = {
                     "match": True,
                     "value": [ h.get("value") for h in hits ],
                     "explanation": [ h.get("explanation") for h in hits ], 
@@ -307,7 +341,8 @@ class DocumentCaptureAgent:
                     "has_conflict": True
                 }
 
-        state["results"] = results
+        # Assign the new results list to the state results
+        state["results"] = new_results
         return state
 
 
@@ -316,12 +351,15 @@ class DocumentCaptureAgent:
         '''Should prompt user if confidence is low'''
         self.logger.info("---STATE: ENOUGH CONFIDENCE---")
 
+        # Search all fields whose confidence is below a threshold
         low_confidence = self.find_low_confidence_fields(state)
 
+        # If no field is low in confidence
         if not low_confidence:
             print("Ningún campo con poca confianza...")
             return state
         
+        # If some fields are low in confidence, review them
         for item in low_confidence:
             field = item["field"]
             value = item["value"]
@@ -329,11 +367,13 @@ class DocumentCaptureAgent:
 
             print(f"Campo: {field}, Valor: {value}, Confianza: {confidence}")
 
-            new_value = input("Confirmar el valor (ENTER) o ingresar uno nuevo")
+            new_value = input("Confirmar el valor (ENTER) o ingresar uno nuevo: ")
 
+            # If user inputs something, update the value
             if new_value.strip():
                 state["results"][field]["value"] = new_value.strip()
 
+            # Set confidence results for field to max (because it was confirmed by user)
             state["results"][field]["confidence"] = 100
            
         return state
@@ -343,13 +383,16 @@ class DocumentCaptureAgent:
     def find_low_confidence_fields(self, state, threshold: int = 80):
         low = []
 
+        # Iterate through the results in state
         for field, result in state["results"].items():
             if not result:
                 continue
 
+            # Get value and confidence
             value = result.get("value")
             confidence = result.get("confidence")
 
+            # If confidence does not meet threshold, add to low confidence list
             if confidence and confidence < threshold:
                 low.append({
                     "field": field,
@@ -371,16 +414,19 @@ class DocumentCaptureAgent:
     def enough_information(self, state: DocumentCaptureState) -> DocumentCaptureState:
         self.logger.info("---STATE: ENOUGH INFORMATION---")
 
+        # Create a list of missing fields and update iteration count
         missing = []
         state["iteration"] += 1
 
+        # Iterate through every field in the state's results
         for field_name, field_info in state["results"].items():
+            # If there is no match, append to list of missing fields
             if not field_info.get("match"):
                 missing.append(field_name)
 
+        # If any field is missing, information is not sufficient
         if missing:
-            state["sufficient_info"] = False
-        
+            state["sufficient_info"] = False      
         else:
             state["sufficient_info"] = True
 
@@ -389,7 +435,19 @@ class DocumentCaptureAgent:
 
     def route_sufficient_info(self, state: DocumentCaptureState) -> str:
         self.logger.info("---STATE: ROUTE SUFFICIENT INFO---")
+
+        # Determine iteration condition
         is_sufficient = "sufficient" if state["sufficient_info"] else "not_sufficient"
+
+        if not state["sufficient_info"]:
+            amount_of_documents = len(self.doc_hub.document_list)
+            self.doc_hub.load_documents()
+            if len(self.doc_hub.document_list) == amount_of_documents:
+                # No new document added
+                # Even if information is not sufficient, we must force the
+                # workflow to its final state
+                is_sufficient = "sufficient"
+
         return is_sufficient
         
     
@@ -402,11 +460,9 @@ class DocumentCaptureAgent:
 
         results = state["results"]
 
-        print("Lista de datos obtenidos:")
+        print("\n\nLista de datos obtenidos:")
         for field, result in results.items():
-            print(f"{field}: {result}")
-
-
+            print(f"{field}: {result["value"]}")
 
         return state
     
@@ -444,11 +500,11 @@ class DocumentCaptureAgent:
             "rut_comercio": "El RUT que identifica la identidad del comercio o empresa que se afilia",
             "razon social": "Nombre legal o razón social del comercio, asociado al RUT registrado",
             "nombre_fantasía": "Nombre de fantasía por el que el comercio es conocido",
-            "direccion_comercio": "Dirección principal del comercio",
+            "direccion_comercio": "Dirección del comercio, con calle y número, y opcionalmente comuna y región (ej: 'Teatinos 500, Santiago, RM'). Si no hay calle o número la confianza es baja",
             "correo_comercio": "Correo central de comunicaciones asociado al comercio",
             "telefono_comercio": "Teléfono central asociado al comercio",
             "nombre_contacto": "Nombre del contacto principal relacionado a la afiliación del comercio",
-            "num_serie": "Número de serie del documento de identidad del contacto principal",
+            "num_serie": "Número de serie del documento de identidad del contacto principal. Formato '111.111.111' o '111111111'. Puede contener letras pero no guiones",
             "correo_contacto": "Dirección de email asociada al contacto principal",
             "telefono_contacto": "Número de teléfono asociado al contacto principal",
             "representante_legal": "Representante legal del comercio o sociedad",
@@ -463,6 +519,7 @@ class DocumentCaptureAgent:
         # Create the initial state and return it
         initial_state: DocumentCaptureState = {
             "documents": document_list,
+            "all_fields": fields,
             "fields_to_extract": fields,
             "extracted_information": {},
             "results": {},

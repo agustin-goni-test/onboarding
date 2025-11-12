@@ -51,6 +51,6 @@ class Logger:
     def warninig(self, message):
         self.logger.warning(message)
 
-    def ddebug(self, message):
+    def debug(self, message):
         self.logger.debug(message)
     
