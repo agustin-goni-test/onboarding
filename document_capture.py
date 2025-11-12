@@ -10,8 +10,10 @@ from langchain_core.prompts import ChatPromptTemplate
 from langchain_google_genai import ChatGoogleGenerativeAI
 import json
 import re
+import os
 from dotenv import load_dotenv
 from logger import Logger
+from input import DocumentHub
 
 load_dotenv()
 
@@ -38,6 +40,7 @@ class DocumentCaptureAgent:
         self.llm = llm
         self.max_iterations = max_iterations
         self.logger = Logger()
+        self.doc_hub = DocumentHub()
         self.graph = self._build_graph()
         
 
@@ -379,7 +382,67 @@ class DocumentCaptureAgent:
     def do_capture(self, initial_state: DocumentCaptureState) -> DocumentCaptureState:
         final_state = self.graph.invoke(initial_state)
         return final_state
+    
 
+    def prepare_initial_state(self) -> DocumentCaptureState:
+        '''
+        This is the method that reads the source files and formats them.
+        Then it adds them to an initial graph state.
+        '''
+
+        SOURCES_DIR = os.getenv("BUSINESS_INFO_FOLDER", "sources")
+
+        # Generate document list to read the necessary files
+        document_list: List[Dict[str, Any]] = []
+
+        self.logger.info("Preparando el estado inicial para el agente...")
+
+        self.doc_hub.load_documents()
+        document_list = self.doc_hub.document_list
+
+
+        # The list of fields to validate
+        fields = {
+            "rut_comercio": "El RUT que identifica la identidad del comercio o empresa que se afilia",
+            "razon social": "Nombre legal o razón social del comercio, asociado al RUT registrado",
+            "nombre_fantasía": "Nombre de fantasía por el que el comercio es conocido",
+            "direccion_comercio": "Dirección principal del comercio",
+            "correo_comercio": "Correo central de comunicaciones asociado al comercio",
+            "telefono_comercio": "Teléfono central asociado al comercio",
+            "nombre_contacto": "Nombre del contacto principal relacionado a la afiliación del comercio",
+            "num_serie": "Número de serie del documento de identidad del contacto principal",
+            "correo_contacto": "Dirección de email asociada al contacto principal",
+            "telefono_contacto": "Número de teléfono asociado al contacto principal",
+            "representante_legal": "Representante legal del comercio o sociedad",
+            "constitucion": "Accionistas del comercio y porcentaje de la operación que tengan",
+            "num_cuenta": "Número de cuenta identificada para el comercio",
+            "tipo_cuenta": "Tipo de la cuenta declarada por el comercio",
+            "banco": "Banco al que pertenece la cuenta encontrada para el comercio",
+            "nombre_cuenta": "Nombre del titular de la cuenta. Si no existe, asumir que es el representante legal, con confianza de 50"
+            # ... other fields
+        }
+
+        # Create the initial state and return it
+        initial_state: DocumentCaptureState = {
+            "documents": document_list,
+            "fields_to_extract": fields,
+            "extracted_information": {},
+            "results": {},
+            "iteration": 0,
+            "max_iterations": 5,
+            "confidence_high": False,
+            "sufficient_info": False    
+        }
+
+        self.logger.info("Estado inicial construido correctamente...")
+
+        return initial_state
+    
+    
+
+
+    
+  
 
     
 

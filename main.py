@@ -16,17 +16,16 @@ load_dotenv()
 logger = Logger()
 
 def main():
-    if not os.path.exists("sources"):
-        logger.error("No existe el directorio con los documentos...")
-        return
-    else:
-        initial_graph_state = prepare_initial_state()
-        print("OK")
+    '''Main logic here'''
 
+    # Create LLM for the agent
     llm = create_llm()
     
+    # Create agent and call method to set up initial state
     agent = DocumentCaptureAgent(llm)
+    initial_graph_state = agent.prepare_initial_state()
 
+    # Find the final state (invoke the agent)
     final_state = agent.do_capture(initial_graph_state)
     print(final_state)
         
@@ -78,9 +77,6 @@ def ocr_base64_image(file_path, langs="spa+eng"):
     text = pytesseract.image_to_string(img, lang=langs)
     return text 
 
-
-    
-
 def get_mime_type(filename: str) -> str:
     if filename.lower().endswith((".jpg", ".jpeg")):
         return "image/jpeg"
@@ -97,13 +93,13 @@ def prepare_initial_state() -> DocumentCaptureState:
     '''
 
     SOURCES_DIR = os.getenv("BUSINESS_INFO_FOLDER", "sources")
-    # PDF_PATH = os.path.join(SOURCES_DIR, "document.pdf")
-    # IMAGE_PATH = os.path.join(SOURCES_DIR, "image.jpg")
 
+    # Generate document list to read the necessary files
     document_list: List[Dict[str, Any]] = []
 
     logger.info(f"Iniciando análisis de archivos desde ruta {SOURCES_DIR}")
 
+    # Look for every file in the folder
     for file_path in glob.glob(os.path.join(SOURCES_DIR, "*")):
         logger.info(f"Procesando archivo {file_path}")
         document: Optional[Dict[str, Any]] = None
@@ -127,19 +123,7 @@ def prepare_initial_state() -> DocumentCaptureState:
             continue
 
 
-
-    # pdf_document = _process_pdf_document(PDF_PATH)
-
-    # # Add to document list        
-    # document_list.append(pdf_document)
-
-    # image_document = _process_image_document(IMAGE_PATH)
-
-    # # Add to document list
-
-    # document_list.append(image_document)
-
-    # I'm only including this so I don't forget. The ACTUAL fields will be part of the state
+    # The list of fields to validate
     fields = {
         "rut_comercio": "El RUT que identifica la identidad del comercio o empresa que se afilia",
         "razon social": "Nombre legal o razón social del comercio, asociado al RUT registrado",
@@ -160,6 +144,7 @@ def prepare_initial_state() -> DocumentCaptureState:
         # ... other fields
     }
 
+    # Create the initial state and return it
     initial_state: DocumentCaptureState = {
         "documents": document_list,
         "fields_to_extract": fields,
@@ -187,6 +172,7 @@ def _process_pdf_document(pdf_path: str) -> Optional[Dict[str, Any]]:
             pdf_document = {
                 "id": f"pdf_document_{os.path.basename(pdf_path)}",
                 "filename": os.path.basename(pdf_path),
+                "processed_state": "pending",
                 "type": "pdf_text",
                 "content": [
                     {"text": "Extrae todos los términos buscados del siguiente texto."},
@@ -213,6 +199,7 @@ def _process_image_document(image_path: str) -> Optional[Dict[str, Any]]:
             image_document = {
                 "id": "image_document_1",
                 "filename": os.path.basename(image_path),
+                "processed_state": "pending",
                 "type": "text",
                 "content": [
                     {"text": "Extrae todos los términos buscados del siguiente texto."},
