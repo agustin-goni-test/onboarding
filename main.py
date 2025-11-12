@@ -2,14 +2,17 @@ import os
 import base64
 import io
 import glob
+import json
 from typing import List, Dict, Any, Optional
 from pypdf import PdfReader
 from document_capture import DocumentCaptureState, DocumentCaptureAgent
+from commerce_integration import VolcadoManager
 from langchain_google_genai import ChatGoogleGenerativeAI
 from PIL import Image, ImageOps, ImageFilter
 import pytesseract
 from logger import Logger
 from dotenv import load_dotenv
+
 
 load_dotenv()
 
@@ -25,11 +28,18 @@ def main():
     
     # Create agent and call method to set up initial state
     agent = DocumentCaptureAgent(llm)
-    initial_graph_state = agent.prepare_initial_state()
+    # initial_graph_state = agent.prepare_initial_state()
 
     # Find the final state (invoke the agent)
-    final_state = agent.do_capture(initial_graph_state)
-    print("\n\nFin de la ejecución...\n")
+    # final_state = agent.do_capture(initial_graph_state)
+
+    # raw_data = final_state["results"]
+    raw_data = json_result_mockup()
+    print("\n\nFin de la inferencia...\n\n")
+
+    manager = VolcadoManager(json.loads(raw_data))
+    manager.complete_results()
+    manager.display_all_values()
         
 
 def create_llm() -> ChatGoogleGenerativeAI:
@@ -217,7 +227,119 @@ def _process_image_document(image_path: str) -> Optional[Dict[str, Any]]:
         raise Exception(f"El documento de imagen no pudo ser procesado: {e}")
     
 
-    
+def json_result_mockup() -> str:
+
+
+    # Use this cleaned JSON version instead
+    raw_data_json = '''
+    {
+        "rut_comercio": {
+            "match": true,
+            "value": "77.929.897-3",
+            "explanation": "Found explicitly under 'Rut Sociedad' in the initial information block: 'Rut Sociedad: 77.929.897-3'",
+            "confidence": 100
+        },
+        "razon_social": {
+            "match": true,
+            "value": "COMERCIAL LUMOS LIMITADA", 
+            "explanation": "Found explicitly under 'Razón Social' in the initial information block",
+            "confidence": 100
+        },
+        "nombre_fantasia": {
+            "match": true,
+            "value": "COMERCIAL LUMOS LIMITADA",
+            "explanation": "Found explicitly in 'ARTÍCULO PRIMERO DEL NOMBRE O RAZON SOCIAL'",
+            "confidence": 100
+        },
+        "direccion_comercio": {
+            "match": true, 
+            "value": "comuna de MAIPU, Región METROPOLITANA DE SANTIAGO",
+            "explanation": "Found in 'ARTÍCULO TERCERO DOMICILIO'",
+            "confidence": 100
+        },
+        "correo_comercio": {
+            "match": false,
+            "value": null,
+            "explanation": null,
+            "confidence": null,
+            "has_conflict": false
+        },
+        "telefono_comercio": {
+            "match": false,
+            "value": null, 
+            "explanation": null,
+            "confidence": null,
+            "has_conflict": false
+        },
+        "nombre_contacto": {
+            "match": true,
+            "value": "JUAN LU",
+            "explanation": "Inferred as the principal contact because 'ARTÍCULO SÉPTIMO DE LA ADMINISTRACIÓN'",
+            "confidence": 85
+        },
+        "num_serie": {
+            "match": false,
+            "value": null,
+            "explanation": null, 
+            "confidence": null,
+            "has_conflict": false
+        },
+        "correo_contacto": {
+            "match": false,
+            "value": null,
+            "explanation": null,
+            "confidence": null,
+            "has_conflict": false
+        },
+        "telefono_contacto": {
+            "match": false,
+            "value": null,
+            "explanation": null,
+            "confidence": null,
+            "has_conflict": false
+        },
+        "representante_legal": {
+            "match": true,
+            "value": "JUAN LU", 
+            "explanation": "Found in 'ARTÍCULO SÉPTIMO DE LA ADMINISTRACIÓN'",
+            "confidence": 100
+        },
+        "constitucion": {
+            "match": true,
+            "value": "MENGQIANG LU 50%, JUAN LU 50%",
+            "explanation": "Based on 'ARTÍCULO QUINTO DEL CAPITAL SOCIAL'",
+            "confidence": 95
+        },
+        "num_cuenta": {
+            "match": true,
+            "value": "24031186",
+            "explanation": "Found explicitly in the line 'Cuenta Corriente 24031186'",
+            "confidence": 95
+        },
+        "tipo_cuenta": {
+            "match": true,
+            "value": "Corriente", 
+            "explanation": "Found explicitly in the line 'Cuenta Corriente 24031186'",
+            "confidence": 90
+        },
+        "banco": {
+            "match": true,
+            "value": "Bci",
+            "explanation": "Inferred from 'Bci Preferencial' mentioned in the document",
+            "confidence": 80
+        },
+        "nombre_cuenta": {
+            "match": false,
+            "value": null,
+            "explanation": null,
+            "confidence": null, 
+            "has_conflict": false
+        }
+    }
+    '''
+    return raw_data_json
+
+
 
 
 if __name__ == "__main__":
