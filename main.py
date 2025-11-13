@@ -46,12 +46,18 @@ def main():
     config = get_kafka_config()
     producer = ConfluentProducerClient(config)
 
-    topic = "sop-af-ayc-firma"
-    message_value = {
-        "commerceRut": "96806110-0"
-    }
+    # topic = "sop-af-ayc-firma"
+    topic = "sop-af-ayc-volcado-centrales-integracion"
 
-    message_key = "comercio-96806110-0"
+    # message_value = {
+    #     "commerceRut": "96806110-0"
+    # }
+
+    file_path = "mockups/input.json"
+    with open(file_path, 'r', encoding='utf-8') as f:
+        message_value = json.load(f)
+
+    message_key = "comercio-52004084-6"
 
     producer.send_message(
         topic=topic,

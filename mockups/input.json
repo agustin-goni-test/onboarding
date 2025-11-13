@@ -1,0 +1,177 @@
+{
+    "integrationCommerce":
+    {
+        "commerceRut":"52004084-6",  
+        "businessName":"Prueba no despachar Razon Social",  
+        "businessLine":292,  
+        "origin":"AUTOAFILIACION_POS",  
+        "email":"HERNAN.PIMENTEL@KLAP.CL",  
+        "emailPayment":"HERNAN.PIMENTEL@KLAP.CL",  
+        "fantasyName":"Prueba no despachar Fantasia",
+        "name":"Prueba no Despachar Nombre",
+        "lastName":"Prueba no despachar pat",
+        "mothersLastName":"Prueba no desp Mat",
+        "mobilePhoneNumber":"997910554",
+        "sellerRut":"10801047-9",
+        "user":"AYC",
+        "integrationAddress":
+        {
+            "region":13,
+            "comune":95,
+            "number":"720",
+            "fullAddress":["AVDA SALESIANOS 720"," SAN MIGUEL"," METROPOLITANA DE SANTIAGO"],
+            "addressWithoutNumber":"AVDA SALESIANOS"
+        },
+        "obs":""
+    },
+    "integrationBankAccount":
+    {
+        "commerceRut":"52004084-6",
+        "bankCode":17,
+        "ownerFullName":"Prueba no despachar Razon Social",
+        "ownerRut":"52004084-6",
+        "ownerEmail":"HERNAN.PIMENTEL@KLAP.CL",
+        "user":"AYC",
+        "accountType":2,
+        "ownerAccountNumber":"111111111111111111",
+        "serviceId":4,
+        "paymentType":"PAGO EN CUENTA BANCARIA"
+    },
+    "integrationContact":
+    {
+        "commerceRut":"52004084-6",
+        "legalRepresentative":false,
+        "names":"Prueba no Despachar Nombre",
+        "lastName":"Prueba no despachar pat",
+        "secondLastName":"Prueba no desp Mat",
+        "rut":"15691092-9",
+        "email":"HERNAN.PIMENTEL@KLAP.CL",
+        "phone":"997910554",
+        "serialNumber":"532647699",
+        "sign":true,
+        "third":false,
+        "signAllowed":false
+    },
+    "integrationBranches":
+    [
+        {
+            "branchId":null,
+            "mainBranch":true,
+            "branchVerticalId":27624,
+            "integrationAddress":
+            {
+                "region":13,
+                "comune":95,
+                "number":"720",
+                "fullAddress":["AVDA SALESIANOS 720"," Ref"],
+                "addressWithoutNumber":"AVDA SALESIANOS"
+            },
+            "businessName":"Prueba no despachar Razon Social",
+            "commerceRut":"52004084-6",
+            "email":"HERNAN.PIMENTEL@KLAP.CL",
+            "fantasyName":"Prueba no despachar Fantasia",
+            "description":"",
+            "idMcc":133,
+            "mobilePhoneNumber":"997910554",
+            "name":"Prueba no Despachar Nombre",
+            "webSite":"",
+            "mantisaBill":"52004084-6",
+            "dvBill":"6",
+            "bankAccount":"111111111111111111",
+            "mantisaHolder":"52004084-6",
+            "integrationType":"PRO MAX",
+            "user":"AYC",
+            "emailContact":"HERNAN.PIMENTEL@KLAP.CL",
+            "merchantType":133,
+            "commerceContactName":"Prueba no Despachar Nombre",
+            "commerceLegalRepresentativeName":"Prueba no Despachar Nombre",
+            "commerceLegalRepresentativeRut":"15691092-9",
+            "commerceLegalRepresentativePhone":"997910554",
+            "integrationTerminals":
+                [
+                    {
+                        "commerceRut":"52004084-6",
+                        "branchCode":0,
+                        "terminalId":null,
+                        "contractId":"0",
+                        "technology":20,
+                        "ussdNumber":0,
+                        "user":"AYC",
+                        "obs":"-SIM: CLARO -MODELO: POSANDROIDMOVIL -CANAL: AUTOAFILIACION. CANAL_ORIGEN: AUTOAFILIACION_POS ",
+                        "additionalInfo":"",
+                        "serviceId":4,
+                        "sellerRut":"10801047-9",
+                        "terminalNumber":"0",
+                        "configurationType":"RED_POS"
+                    }
+                    ,{
+                        "commerceRut":"52004084-6",
+                        "branchCode":0,
+                        "terminalId":null,
+                        "contractId":"0",
+                        "technology":20,
+                        "ussdNumber":0,
+                        "user":"AYC",
+                        "obs":"-SIM: CLARO -MODELO: POSANDROIDMOVIL -CANAL: AUTOAFILIACION. CANAL_ORIGEN: AUTOAFILIACION_POS ",
+                        "additionalInfo":"",
+                        "serviceId":4,
+                        "sellerRut":"10801047-9",
+                        "terminalNumber":"0",
+                        "configurationType":"RED_POS"
+                    }
+                ]
+            },
+            {
+                "branchId":null,
+                "mainBranch":false,
+                "branchVerticalId":27625,
+                "integrationAddress":
+                {
+                    "region":13,
+                    "comune":95,
+                    "number":"500",
+                    "fullAddress":["TEATINOS 500"," Ref"],
+                    "addressWithoutNumber":"TEATINOS"
+                },
+                "businessName":"Prueba no despachar Razon Social",
+                "commerceRut":"52004084-6",
+                "email":"HERNAN.PIMENTEL@KLAP.CL",
+                "fantasyName":"Prueba no despachar Sucursal 1",
+                "description":"",
+                "idMcc":133,
+                "mobilePhoneNumber":"997910554",
+                "name":"Prueba no Despachar Nombre",
+                "webSite":"",
+                "mantisaBill":"52004084-6",
+                "dvBill":"6",
+                "bankAccount":"111111111111111111",
+                "mantisaHolder":"52004084-6",
+                "integrationType":"PRO MAX",
+                "user":"AYC",
+                "emailContact":"HERNAN.PIMENTEL@KLAP.CL",
+                "merchantType":133,
+                "commerceContactName":"Prueba no Despachar Nombre",
+                "commerceLegalRepresentativeName":"Prueba no Despachar Nombre",
+                "commerceLegalRepresentativeRut":"15691092-9",
+                "commerceLegalRepresentativePhone":"997910554",
+                "integrationTerminals":
+                [
+                    {
+                        "commerceRut":"52004084-6",
+                        "branchCode":0,
+                        "terminalId":null,
+                        "contractId":"0",
+                        "technology":20,
+                        "ussdNumber":0,
+                        "user":"AYC",
+                        "obs":"-SIM: ENTEL -MODELO: POSANDROIDMOVIL -CANAL: AUTOAFILIACION. CANAL_ORIGEN: AUTOAFILIACION_POS ",
+                        "additionalInfo":"",
+                        "serviceId":4,
+                        "sellerRut":"10801047-9",
+                        "terminalNumber":"0",
+                        "configurationType":"RED_POS"
+                    }
+                ]
+            }
+        ]
+    }
