@@ -1,2 +1,2 @@
-pip install python-dotenv langchain langchain_core langgraph langchain-google-genai pypdf pillow pytesseract
+pip install python-dotenv langchain langchain_core langgraph langchain-google-genai pypdf pillow pytesseract thefuzz confluent_kafka
 brew install tesseract

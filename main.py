@@ -12,6 +12,7 @@ from PIL import Image, ImageOps, ImageFilter
 import pytesseract
 from logger import Logger
 from dotenv import load_dotenv
+from clients.kafka_producer import ConfluentProducerClient
 
 
 load_dotenv()
@@ -42,9 +43,40 @@ def main():
     manager.complete_results_mockup()
     manager.display_all_values()
 
+    config = get_kafka_config()
+    producer = ConfluentProducerClient(config)
+
+    topic = "sop-af-ayc-firma"
+    message_value = {
+        "commerceRut": "96806110-0"
+    }
+
+    message_key = "comercio-96806110-0"
+
+    producer.send_message(
+        topic=topic,
+        key=message_key,
+        value=message_value
+    )
+
+    producer.close()
+
+
     message = manager.create_volcado_data()
     print(message.to_json(indent=4))
 
+
+def get_kafka_config() -> Dict[str, Any]:
+    kafka_producer_config: Dict[str, Any] = {
+        'bootstrap.servers': 'pkc-p11xm.us-east-1.aws.confluent.cloud:9092',
+        'security.protocol': 'SASL_SSL',
+        'sasl.mechanism': 'PLAIN',
+        'sasl.username': '3DMA6VIPHQA7R2VA',
+        'sasl.password': 'UtrhdrSmV8xq9nZligCU5GZpm+7lbn3GbIzrkoqErmtIg2WW16Qvu7wV/7Dd9+Vw',
+        'client.id': 'CommerceProducer'
+    }
+
+    return kafka_producer_config
 
         
 

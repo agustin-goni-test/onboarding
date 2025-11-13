@@ -1,7 +1,7 @@
 from typing import List, Dict, Any, Optional
 from pydantic import BaseModel, Field
 from document_capture import InformationNode
-from clients.bff_client import get_bff_cuenta_instance
+from clients.bff_client import get_bff_cuenta_instance, get_bff_comercio_instance
 
 # --- Sub-Component Classes ---
 
@@ -343,6 +343,7 @@ class VolcadoManager:
     
 
     # PENDING: Will the account name be the same as the contact name?
+    # PENDING: Rut de contacto
     def get_integration_bank_account_data(self) -> IntegrationBankAccount:
         '''Create the bank account information'''
         # Create bank account object
@@ -350,16 +351,18 @@ class VolcadoManager:
 
         # Get instance for BFF Cuenta
         bff_cuenta = get_bff_cuenta_instance()
-        bff_cuenta.fetch_account_data()
+        bff_cuenta.populate_account_data()
+        account_type_code = bff_cuenta.obtain_account_type_code(self._get_value("tipo_cuenta"))
+        bank_code = bff_cuenta.obtain_bank_code(self._get_value("banco"))
 
         # Set values from inference -- SOME PENDING
         bank_account.commerceRut = self._get_value("rut_comercio")
-        bank_account.bankCode = 0 # pending
+        bank_account.bankCode = bank_code
         bank_account.ownerFullName = self._get_value("nombre_contacto")
         bank_account.ownerRut = self._get_value("rut_contacto")  # pending  
         bank_account.ownerEmail = self._get_value("correo_contacto")
         bank_account.user = "AYC"
-        bank_account.accountType = 0 # pending
+        bank_account.accountType = account_type_code
         bank_account.ownerAccountNumber = self._get_value("num_cuenta")
 
         # Return bank account object
@@ -373,10 +376,17 @@ class VolcadoManager:
         # Set the values from inference input -- SOME VALIDATIONS NEEDED
         contact.commerceRut = self._get_value("rut_comercio")
         contact.legalRepresentative = False  # validate
-        contact.names = self._get_value("nombre_contacto") # Procesar nombre
-        contact.lastName = self._get_value("apellido_contacto") # Procesar apellido
-        contact.secondLastName = self._get_value("apellido_contacto") # Procesar apellido
-        contact.rut = self._get_value("rut_contacto")
+
+         # Obtain parts of the name (use contact name)
+        integration_name = self._obtain_parts_of_name(self._get_value("nombre_contacto"))
+
+        # Set name-related parameters
+        contact.names = integration_name.names
+        contact.lastName = integration_name.lastName
+        contact.secondLastName = integration_name.secondLastName
+
+        # Remaining parameters
+        contact.rut = self._get_value("rut_contacto") # pending
         contact.email = self._get_value("correo_contacto")
         contact.phone = self._get_value("telefono_contacto")
         contact.serialNumber = self._get_value("num_serie")
@@ -387,22 +397,34 @@ class VolcadoManager:
 
         return contact
 
-    
+    # PENDING: Validar si merchantType es giro
+    # PENDING: rut contacto
+    # PENDING: actividad económica
     def get_integration_branches_data(self) -> IntegrationBranches:
         '''Create a single branch'''
         # Create branch object
         branches = IntegrationBranches()
 
+        actividad = "FABRICACIÓN DE CABLES DE FIBRA ÓPTICA"
+
+        # Get instance of BFF for economic activities
+        bff_comercio = get_bff_comercio_instance()
+        bff_comercio.populate_economic_activities()
+
+        activity_code = bff_comercio.obtain_activity_code(actividad)
+        bff_comercio.fetch_mcc_info(activity_code)
+        mcc, giro = bff_comercio.get_giro_and_mcc(activity_code)
+
         # Add simple values from inference
         branches.branchId = None
         branches.mainBranch = True
-        branches.branchVerticalId = 0 # pending
+        branches.branchVerticalId = 0 # Internal code, not really needed
         branches.businessName = self._get_value("razon_social")
         branches.commerceRut = self._get_value("rut_comercio")
         branches.email = self._get_value("correo_comercio")
         branches.fantasyName = self._get_value("nombre_fantasia")
         branches.description = ""
-        branches.idMcc = 0 # pending
+        branches.idMcc = mcc 
         branches.mobilePhoneNumber = self._get_value("telefono_comercio")
         branches.name = self._get_value("razon_social")
         branches.webSite = ""
@@ -413,7 +435,7 @@ class VolcadoManager:
         branches.integrationType = "PRO" # fixed value that will work
         branches.user = "AYC"
         branches.emailContact = self._get_value("correo_contacto")
-        branches.merchantType = 0 # pending
+        branches.merchantType = mcc # Validate
         branches.commerceContactName = self._get_value("nombre_contacto")
         branches.commerceLegalRepresentativeName = self._get_value("nombre_contacto")
         branches.commerceLegalRepresentativeRut = self._get_value("rut_contacto") # DOES NOT EXIST!!
@@ -429,8 +451,6 @@ class VolcadoManager:
         # Return branch object
         return branches
     
-
-
 
     def add_integration_terminals(self, requested_amount: int = 2) -> List[IntegrationTerminals]:
         '''Create a list of terminals'''
