@@ -6,112 +6,114 @@ from document_capture import InformationNode
 
 class IntegrationAddress(BaseModel):
     """Models the address structure used in Commerce and Branches."""
-    region: int
-    comune: int
-    number: str
-    fullAddress: List[str]
-    addressWithoutNumber: str
+    region: int | None = None
+    comune: int | None = None
+    number: str | None = None
+    fullAddress: List[str] | None = None
+    addressWithoutNumber: str | None = None
 
 class IntegrationTerminals(BaseModel):
     """Models the terminal configuration details."""
-    commerceRut: str
-    branchCode: int
+    commerceRut: str | None = None
+    branchCode: int | None = None
     terminalId: Optional[str] = None # Assuming null means Optional[str]
-    contractId: str
-    technology: int
-    ussdNumber: int
-    user: str
-    obs: str
-    additionalInfo: str
-    serviceId: int
-    sellerRut: str
-    terminalNumber: str
-    configurationType: str
+    contractId: str | None = None
+    technology: int | None = None
+    ussdNumber: int | None = None
+    user: str | None = None
+    obs: str | None = None
+    additionalInfo: str | None = None
+    serviceId: int | None = None
+    sellerRut: str | None = None
+    terminalNumber: str | None = None
+    configurationType: str | None = None
 
 # --- Main Component Classes ---
 
 class IntegrationCommerce(BaseModel):
     """Models the primary commerce integration details."""
-    commerceRut: str
-    businessName: str
-    businessLine: int
-    origin: str
-    email: str
-    emailPayment: str
-    fantasyName: str
-    name: str
-    lastName: str
-    mothersLastName: str
-    mobilePhoneNumber: str
-    sellerRut: str
-    integrationAddress: IntegrationAddress # Nested object
-    obs: str
+    commerceRut: str | None = None
+    businessName: str | None = None
+    businessLine: int | None = None
+    origin: str | None = None
+    email: str | None = None
+    emailPayment: str | None = None
+    fantasyName: str | None = None
+    name: str | None = None
+    lastName: str | None = None
+    mothersLastName: str | None = None
+    mobilePhoneNumber: str | None = None
+    sellerRut: str | None = None
+    user: str | None = None
+    integrationAddress: IntegrationAddress | None = None # Nested object
+    obs: str | None = None
 
 class IntegrationBankAccount(BaseModel):
     """Models the bank account details."""
-    commerceRut: str
-    bankCode: int
-    ownerFullName: str
-    ownerRut: str
-    ownerEmail: str
-    user: str
-    accountType: int
-    ownerAccountNumber: str
-    serviceId: int
-    paymentType: str
+    commerceRut: str | None = None
+    bankCode: int | None = None
+    ownerFullName: str | None = None
+    ownerRut: str | None = None
+    ownerEmail: str | None = None
+    user: str | None = None
+    accountType: int | None = None
+    ownerAccountNumber: str | None = None
+    serviceId: int | None = None
+    paymentType: str | None = None
 
 class IntegrationContact(BaseModel):
     """Models the integration contact details."""
-    commerceRut: str
-    legalRepresentative: bool
-    names: str
-    lastName: str
-    secondLastName: str
-    rut: str
-    email: str
-    phone: str
-    serialNumber: str
-    sign: bool
-    third: bool
-    signAllowed: bool
+    commerceRut: str | None = None
+    legalRepresentative: bool | None = None
+    names: str | None = None
+    lastName: str | None = None
+    secondLastName: str | None = None
+    rut: str | None = None
+    email: str | None = None
+    phone: str | None = None
+    serialNumber: str | None = None
+    sign: bool | None = None
+    third: bool | None = None
+    user: str | None = None
+    signAllowed: bool | None = None
 
 class IntegrationBranches(BaseModel):
     """Models the branch details, which includes an address and terminals list."""
     branchId: Optional[str] = None
-    mainBranch: bool
-    branchVerticalId: int
-    integrationAddress: IntegrationAddress  # Nested object
-    businessName: str
-    commerceRut: str
-    email: str
-    fantasyName: str
-    description: str
-    idMcc: int
-    mobilePhoneNumber: str
-    name: str
-    webSite: str
-    mantisaBill: str
-    dvBill: str
-    bankAccount: str
-    mantisaHolder: str
-    integrationType: str
-    user: str
-    emailContact: str
-    merchantType: int
-    commerceContactName: str
-    commerceLegalRepresentativeName: str
-    commerceLegalRepresentativeRut: str
-    commerceLegalRepresentativePhone: str
-    integrationTerminals: List[IntegrationTerminals] # Nested list of objects
+    mainBranch: bool | None = None
+    branchVerticalId: int | None = None
+    integrationAddress: IntegrationAddress | None = None  # Nested object
+    businessName: str | None = None
+    commerceRut: str | None = None
+    email: str | None = None
+    fantasyName: str | None = None
+    description: str | None = None
+    idMcc: int | None = None
+    mobilePhoneNumber: str | None = None
+    name: str | None = None
+    webSite: str | None = None
+    mantisaBill: str | None = None
+    dvBill: str | None = None
+    bankAccount: str | None = None
+    mantisaHolder: str | None = None
+    integrationType: str | None = None
+    user: str | None = None
+    emailContact: str | None = None
+    merchantType: int | None = None
+    commerceContactName: str | None = None
+    commerceLegalRepresentativeName: str | None = None
+    commerceLegalRepresentativeRut: str | None = None
+    commerceLegalRepresentativePhone: str | None = None
+    integrationTerminals: List[IntegrationTerminals]  | None = None # Nested list of objects
 
 # --- Top-Level Class ---
 
 class EntidadesVolcado(BaseModel):
     """The top-level object containing the entire JSON structure."""
-    integrationCommerce: IntegrationCommerce
-    integrationBankAccount: IntegrationBankAccount
-    integrationContact: IntegrationContact
-    integrationBranches: List[IntegrationBranches]
+    integrationCommerce: IntegrationCommerce | None = None
+    integrationBankAccount: IntegrationBankAccount | None = None
+    integrationContact: IntegrationContact | None = None
+    integrationBranches: List[IntegrationBranches] | None = None
 
     def to_json(self, **kwargs) -> str:
         """
@@ -185,6 +187,237 @@ class VolcadoManager:
     def display_all_values(self):
         for field_name, node in self.results.items():
             print(f"{field_name}: {node.get('value')}")
+
+    
+    def complete_results_mockup(self):
+        '''Mockup method only used for quicker testing...'''
+        missing_fields = ["correo_comercio",
+                          "telefono_comercio",
+                          "num_serie",
+                          "correo_contacto",
+                          "telefono_contacto",
+                          "nombre_cuenta"
+                          ]
+        
+        added_values = ["prueba@gmail.com",
+                        "912345678",
+                        "123123123",
+                        "prueba@gmail.com",
+                        "912345678",
+                        "Juan Perez"
+                        ]
+        
+        if missing_fields:
+            for field_name, added_value in zip(missing_fields, added_values):
+                self.results[field_name]["value"] = added_value
+                self.results[field_name]["match"] = True
+                self.results[field_name]["confidence"] = 100
+
+
+    def create_volcado_data(self) -> EntidadesVolcado:
+        '''Creates the structure that will be sent to the integration topic'''
+        # Create container object
+        volcado = EntidadesVolcado()
+
+        # Obtain RUT for the next steps
+        rut = self._get_value("rut_comercio")
+
+
+        # Create a commerce, bank account and contact
+        commerce = self.get_integration_commerce_data()
+        bank_account = self.get_integration_bank_account_data()
+        contact = self.get_integration_contact_data()
+
+        # Create one branch and assign to list of branches 
+        branches = []
+        branch = self.get_integration_branches_data()
+        branches.append(branch)
+
+        # Add every element to the container object
+        volcado.integrationCommerce = commerce
+        volcado.integrationBankAccount = bank_account
+        volcado.integrationContact = contact
+        volcado.integrationBranches = branches
+
+        # Return the container object
+        return volcado
+
+    
+    def get_integration_commerce_data(self) -> IntegrationCommerce:
+        '''Create the main commerce information'''
+        # Create the commerce object
+        commerce = IntegrationCommerce()
+
+        # Set the values according to the input - PENDING
+        commerce.commerceRut = self._get_value("rut_comercio")
+        commerce.businessName = self._get_value("razon_social")
+        commerce.fantasyName = self._get_value("nombre_fantasia")
+        commerce.businessLine = 0 # pending
+        commerce.origin = "AUTOAFILIACION POS"
+        commerce.email = self._get_value("correo_comercio")
+        commerce.emailPayment = self._get_value("correo_contacto")
+        commerce.name = self._get_value("razon_social")  # Validate
+        commerce.lastName = self._get_value("razon_social")  # Validate
+        commerce.mothersLastName = self._get_value("razon_social")  # Validate
+        commerce.sellerRut = "5-1"
+        commerce.user = "AYC"
+        
+        # Create the address information. Move this to a new external method
+        # Use helper method
+        address_info = self._get_address_info(self._get_value("direccion_comercio"))
+        
+        # Add address to commerce info
+        commerce.integrationAddress = address_info
+        
+        return commerce
+
+    def _get_address_info(self, address_value) -> IntegrationAddress:
+        '''Helper method used to create the address object with a specific format
+        from the address string obtained in the inference.'''
+        # Create the address object
+        address = IntegrationAddress()
+
+        # Add the elements --- ALL OF THIS IS STILL PENDING
+        address.region = 0 # pending
+        address.comune = 0 # pending
+        address.number = "" # pending
+        address.fullAddress = [] # pending
+        address.addressWithoutNumber = 0 # pending
+
+        # Return address object
+        return address
+    
+
+    def get_integration_bank_account_data(self) -> IntegrationBankAccount:
+        '''Create the bank account information'''
+        # Create bank account object
+        bank_account = IntegrationBankAccount()
+
+        # Set values from inference -- SOME PENDING
+        bank_account.commerceRut = self._get_value("rut_comercio")
+        bank_account.bankCode = 0 # pending
+        bank_account.ownerFullName = self._get_value("nombre_contacto")
+        bank_account.ownerRut = self._get_value("rut_contacto")  # Validate  
+        bank_account.ownerEmail = self._get_value("correo_contacto")
+        bank_account.user = "AYC"
+        bank_account.accountType = 0 # pending
+        bank_account.ownerAccountNumber = self._get_value("num_cuenta")
+
+        # Return bank account object
+        return bank_account
+    
+    def get_integration_contact_data(self) -> IntegrationContact:
+        '''Create the contact information'''
+        # Create contact object
+        contact = IntegrationContact()
+        
+        # Set the values from inference input -- SOME VALIDATIONS NEEDED
+        contact.commerceRut = self._get_value("rut_comercio")
+        contact.legalRepresentative = False  # validate
+        contact.names = self._get_value("nombre_contacto") # Procesar nombre
+        contact.lastName = self._get_value("apellido_contacto") # Procesar apellido
+        contact.secondLastName = self._get_value("apellido_contacto") # Procesar apellido
+        contact.rut = self._get_value("rut_contacto")
+        contact.email = self._get_value("correo_contacto")
+        contact.phone = self._get_value("telefono_contacto")
+        contact.serialNumber = self._get_value("num_serie")
+        contact.sign = True  # validate
+        contact.third = False  # validate
+        contact.user = "AYC"
+        contact.signAllowed = False  # validate
+
+        return contact
+
+    
+    def get_integration_branches_data(self) -> IntegrationBranches:
+        '''Create a single branch'''
+        # Create branch object
+        branches = IntegrationBranches()
+
+        # Add simple values from inference
+        branches.branchId = None
+        branches.mainBranch = True
+        branches.branchVerticalId = 0 # pending
+        branches.businessName = self._get_value("razon_social")
+        branches.commerceRut = self._get_value("rut_comercio")
+        branches.email = self._get_value("correo_comercio")
+        branches.fantasyName = self._get_value("nombre_fantasia")
+        branches.description = ""
+        branches.idMcc = 0 # pending
+        branches.mobilePhoneNumber = self._get_value("telefono_comercio")
+        branches.name = self._get_value("razon_social")
+        branches.webSite = ""
+        branches.mantisaBill = self._get_value("rut_comercio")
+        branches.dvBill = (self._get_value("rut_comercio")).split("-")[1]
+        branches.bankAccount = self._get_value("num_cuenta")
+        branches.mantisaHolder = self._get_value("rut_comercio")
+        branches.integrationType = "PRO" # fixed value that will work
+        branches.user = "AYC"
+        branches.emailContact = self._get_value("correo_contacto")
+        branches.merchantType = 0 # pending
+        branches.commerceContactName = self._get_value("nombre_contacto")
+        branches.commerceLegalRepresentativeName = self._get_value("nombre_contacto")
+        branches.commerceLegalRepresentativeRut = self._get_value("rut_contacto") # DOES NOT EXIST!!
+        branches.commerceLegalRepresentativePhone = self._get_value("telefono_contacto") 
+
+        # Create address object and assign
+        address_info = self._get_address_info(self._get_value("direccion_comercio"))
+        branches.integrationAddress = address_info
+
+        # Create a certain number of terminals (2 for this test)
+        branches.integrationTerminals = self.add_integration_terminals(2)
+
+        # Return branch object
+        return branches
+    
+
+
+
+    def add_integration_terminals(self, requested_amount: int = 2) -> List[IntegrationTerminals]:
+        '''Create a list of terminals'''
+        # Create a list of terminals
+        terminals = []
+
+        # Keep count, start with 0
+        count = 0
+
+        # Add the specified number
+        while count < requested_amount:
+            terminal = IntegrationTerminals()
+            terminal.commerceRut = self._get_value("rut_comercio")
+            terminal.branchCode = 0
+            terminal.terminalId = None
+            terminal.contractId = "0"
+            terminal.technology = 20
+            terminal.ussdNumber = 0
+            terminal.user = "AYC"
+            terminal.obs = "-SIM: CLARO -MODELO: POSANDROIDMOVIL -CANAL: AUTOAFILIACION. CANAL_ORIGEN: AUTOAFILIACION_POS "
+            terminal.additionalInfo = ""
+            terminal.serviceId = 4
+            terminal.sellerRut = "5-1"
+            terminal.terminalNumber = "0"
+            terminal.configurationType = "RED_POS"
+
+            # Append to list and increment count
+            terminals.append(terminal)
+            count += 1
+
+        # Return list of terminals
+        return terminals
+
+    
+
+
+
+        
+
+
+
+
+
+
+
+        
 
 
 

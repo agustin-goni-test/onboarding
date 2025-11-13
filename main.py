@@ -6,7 +6,7 @@ import json
 from typing import List, Dict, Any, Optional
 from pypdf import PdfReader
 from document_capture import DocumentCaptureState, DocumentCaptureAgent
-from commerce_integration import VolcadoManager
+from commerce_integration import VolcadoManager, EntidadesVolcado
 from langchain_google_genai import ChatGoogleGenerativeAI
 from PIL import Image, ImageOps, ImageFilter
 import pytesseract
@@ -38,8 +38,14 @@ def main():
     print("\n\nFin de la inferencia...\n\n")
 
     manager = VolcadoManager(json.loads(raw_data))
-    manager.complete_results()
+    # manager.complete_results()
+    manager.complete_results_mockup()
     manager.display_all_values()
+
+    message = manager.create_volcado_data()
+    print(message.to_json(indent=4))
+
+
         
 
 def create_llm() -> ChatGoogleGenerativeAI:
