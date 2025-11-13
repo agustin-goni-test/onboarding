@@ -1,6 +1,7 @@
 from typing import List, Dict, Any, Optional
 from pydantic import BaseModel, Field
 from document_capture import InformationNode
+from clients.bff_client import get_bff_cuenta_instance
 
 # --- Sub-Component Classes ---
 
@@ -11,6 +12,11 @@ class IntegrationAddress(BaseModel):
     number: str | None = None
     fullAddress: List[str] | None = None
     addressWithoutNumber: str | None = None
+
+class IntegrationName(BaseModel):
+    names: str | None = None
+    lastName: str | None = None
+    secondLastName: str | None = None
 
 class IntegrationTerminals(BaseModel):
     """Models the terminal configuration details."""
@@ -204,7 +210,7 @@ class VolcadoManager:
                         "123123123",
                         "prueba@gmail.com",
                         "912345678",
-                        "Juan Perez"
+                        "Juan Perez Soto"
                         ]
         
         if missing_fields:
@@ -242,7 +248,8 @@ class VolcadoManager:
         # Return the container object
         return volcado
 
-    
+    # PENDING: correct value for business line
+    # PENDING: get value for the contact name (and correct the different possibilites of names)
     def get_integration_commerce_data(self) -> IntegrationCommerce:
         '''Create the main commerce information'''
         # Create the commerce object
@@ -256,9 +263,16 @@ class VolcadoManager:
         commerce.origin = "AUTOAFILIACION POS"
         commerce.email = self._get_value("correo_comercio")
         commerce.emailPayment = self._get_value("correo_contacto")
-        commerce.name = self._get_value("razon_social")  # Validate
-        commerce.lastName = self._get_value("razon_social")  # Validate
-        commerce.mothersLastName = self._get_value("razon_social")  # Validate
+
+        # Obtain parts of the name (use contact name)
+        integration_name = self._obtain_parts_of_name(self._get_value("nombre_contacto"))
+
+        # Set name-related parameters
+        commerce.name = integration_name.names
+        commerce.lastName = integration_name.lastName
+        commerce.mothersLastName = integration_name.secondLastName
+
+        # Set fixed parameters
         commerce.sellerRut = "5-1"
         commerce.user = "AYC"
         
@@ -270,6 +284,46 @@ class VolcadoManager:
         commerce.integrationAddress = address_info
         
         return commerce
+    
+
+    def _obtain_parts_of_name(self, name) -> IntegrationName:
+        '''Helper method to separate a name'''
+        # Split the input
+        name_parts = name.split(" ")
+        integration_name = IntegrationName()
+
+        # Get the number of parts
+        number_of_parts = len(name_parts)
+
+        # If the name came in four or more parts (at least 2 names and 2 surnames)
+        if number_of_parts >= 4:
+            integration_name.secondLastName = name_parts[number_of_parts-1]
+            integration_name.lastName = name_parts[number_of_parts-2]
+            integration_name.names = " ".join(name_parts[:2])
+
+        # If it came in 3 parts (assume 1 name and 2 surnames)
+        elif number_of_parts == 3:
+            integration_name.secondLastName = name_parts[2]
+            integration_name.lastName = name_parts[1]
+            integration_name.names = name_parts[0]
+
+        # The name came in 2 parts (only name and surname)
+        # We will repeat the surname just in case it's a problem
+        elif number_of_parts == 2:
+            integration_name.secondLastName = name_parts[1]
+            integration_name.lastName = name_parts[1]
+            integration_name.names = name_parts[0]
+
+        # If there is only one part (i.e., "Sting") simply repeat in every case
+        else:
+            integration_name.secondLastName = name_parts[0]
+            integration_name.lastName = name_parts[0]
+            integration_name.names = name_parts[0]
+
+        return integration_name
+
+
+
 
     def _get_address_info(self, address_value) -> IntegrationAddress:
         '''Helper method used to create the address object with a specific format
@@ -282,22 +336,27 @@ class VolcadoManager:
         address.comune = 0 # pending
         address.number = "" # pending
         address.fullAddress = [] # pending
-        address.addressWithoutNumber = 0 # pending
+        address.addressWithoutNumber = "" # pending
 
         # Return address object
         return address
     
 
+    # PENDING: Will the account name be the same as the contact name?
     def get_integration_bank_account_data(self) -> IntegrationBankAccount:
         '''Create the bank account information'''
         # Create bank account object
         bank_account = IntegrationBankAccount()
 
+        # Get instance for BFF Cuenta
+        bff_cuenta = get_bff_cuenta_instance()
+        bff_cuenta.fetch_account_data()
+
         # Set values from inference -- SOME PENDING
         bank_account.commerceRut = self._get_value("rut_comercio")
         bank_account.bankCode = 0 # pending
         bank_account.ownerFullName = self._get_value("nombre_contacto")
-        bank_account.ownerRut = self._get_value("rut_contacto")  # Validate  
+        bank_account.ownerRut = self._get_value("rut_contacto")  # pending  
         bank_account.ownerEmail = self._get_value("correo_contacto")
         bank_account.user = "AYC"
         bank_account.accountType = 0 # pending
