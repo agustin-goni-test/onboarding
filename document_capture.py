@@ -353,6 +353,7 @@ class DocumentCaptureAgent:
 
         # Search all fields whose confidence is below a threshold
         low_confidence = self.find_low_confidence_fields(state)
+        multiple_values = self.find_multiple_value_fields(state)
 
         # If no field is low in confidence
         if not low_confidence:
@@ -362,23 +363,26 @@ class DocumentCaptureAgent:
         # If some fields are low in confidence, review them
         for item in low_confidence:
             field = item["field"]
-            value = item["value"]
-            confidence = item["confidence"]
+            confirmed_value = self.solve_low_confidence(item)
+            # value = item["value"]
+            # confidence = item["confidence"]
 
-            print(f"Campo: {field}, Valor: {value}, Confianza: {confidence}")
+            # print(f"Campo: {field}, Valor: {value}, Confianza: {confidence}")
 
-            new_value = input("Confirmar el valor (ENTER) o ingresar uno nuevo: ")
+            # new_value = input("Confirmar el valor (ENTER) o ingresar uno nuevo: ")
 
-            # If user inputs something, update the value
-            if new_value.strip():
-                state["results"][field]["value"] = new_value.strip()
+            # # If user inputs something, update the value
+            # if new_value.strip():
+            #     state["results"][field]["value"] = new_value.strip()
+            
+            # Set value according to the results of the function
+            state["results"][field]["value"] = confirmed_value.strip()
 
             # Set confidence results for field to max (because it was confirmed by user)
             state["results"][field]["confidence"] = 100
            
         return state
 
-    
 
     def find_low_confidence_fields(self, state, threshold: int = 80):
         low = []
@@ -401,6 +405,57 @@ class DocumentCaptureAgent:
                 })
 
         return low
+    
+    def solve_low_confidence(self, item) -> str:
+        '''Fix if a field has low confidence'''
+        field = item["field"]
+        value = item["value"]
+        confidence = item["confidence"]
+
+        print(f"\nCampo '{field}' detectado con menor confianza que el mínimo.")
+        print(f"Valor actual: {value} --- Confianza: {confidence}%")
+        print("Soluciones posibles:")
+        print("1. Mantener el valor actual")
+        print("2. Ingresar un valor distinto")
+
+        solved = False
+        while not solved:
+            option = input("Seleccionar la preferencia: ")
+            if option == "1":
+                return value
+            elif option == "2":
+                new_value = input("Ingresar nuevo valor: ")
+                return new_value
+            else:
+                print("Elija una opción válida.\n")
+
+
+        
+
+    
+    def find_multiple_value_fields(self, state: DocumentCaptureState) -> List[Dict[str, Any]]:
+        '''
+        Finds fields in the results that obtained more than one value. Since this is 
+        a conflict of information, it requires disambiguation.'''
+        multi_value_fields = []
+
+        results = state.get("results", {})
+
+        # Iterate over the fields in results
+        for field, result_data in results.items():
+            value = result_data.get("value")
+
+            # Check if the value is a list and has more than one element
+            if isinstance(value, list) and len(value) > 1:
+
+                # Append this to the list of fields with multiples values
+                multi_value_fields.append({
+                    "field": field,
+                    "values": value,
+                    "confidence": result_data.get("confidence", 0)
+                })
+
+        return multi_value_fields
     
 
     def confirm_or_adjust(self, state: DocumentCaptureState) -> DocumentCaptureState:
@@ -496,15 +551,35 @@ class DocumentCaptureAgent:
 
 
         # The list of fields to validate
+        # fields = {
+        #     "rut_comercio": "El RUT que identifica la identidad del comercio o empresa que se afilia",
+        #     "razon social": "Nombre legal o razón social del comercio, asociado al RUT registrado",
+        #     "nombre_fantasía": "Nombre de fantasía por el que el comercio es conocido",
+        #     "direccion_comercio": "Dirección del comercio, con calle y número, y opcionalmente comuna y región (ej: 'Teatinos 500, Santiago, RM'). Si no hay calle o número la confianza es baja",
+        #     "correo_comercio": "Correo central de comunicaciones asociado al comercio",
+        #     "telefono_comercio": "Teléfono central asociado al comercio",
+        #     "nombre_contacto": "Nombre del contacto principal relacionado a la afiliación del comercio",
+        #     "num_serie": "Número de serie del documento de identidad del contacto principal. Formato '111.111.111' o '111111111'. Puede contener letras pero no guiones",
+        #     "correo_contacto": "Dirección de email asociada al contacto principal",
+        #     "telefono_contacto": "Número de teléfono asociado al contacto principal",
+        #     "representante_legal": "Representante legal del comercio o sociedad",
+        #     "constitucion": "Accionistas del comercio y porcentaje de la operación que tengan",
+        #     "num_cuenta": "Número de cuenta identificada para el comercio",
+        #     "tipo_cuenta": "Tipo de la cuenta declarada por el comercio",
+        #     "banco": "Banco al que pertenece la cuenta encontrada para el comercio",
+        #     "nombre_cuenta": "Nombre del titular de la cuenta. Si no existe, asumir que es el representante legal, con confianza de 50"
+        #     # ... other fields
+        # }
+
         fields = {
-            "rut_comercio": "El RUT que identifica la identidad del comercio o empresa que se afilia",
+            "rut_comercio": "El RUT que identifica el comercio o empresa que se afilia. DEBE contener guión (ejemplo '4.567.389-1' o '45768945-4')",
             "razon social": "Nombre legal o razón social del comercio, asociado al RUT registrado",
             "nombre_fantasía": "Nombre de fantasía por el que el comercio es conocido",
             "direccion_comercio": "Dirección del comercio, con calle y número, y opcionalmente comuna y región (ej: 'Teatinos 500, Santiago, RM'). Si no hay calle o número la confianza es baja",
-            "correo_comercio": "Correo central de comunicaciones asociado al comercio",
-            "telefono_comercio": "Teléfono central asociado al comercio",
+            "actividad_economica": "Actividad económica a la que se dedica la sociedad del comercio",
             "nombre_contacto": "Nombre del contacto principal relacionado a la afiliación del comercio",
-            "num_serie": "Número de serie del documento de identidad del contacto principal. Formato '111.111.111' o '111111111'. Puede contener letras pero no guiones",
+            "rut_contacto": "RUT del contacto principal del comercio",
+            "num_serie": "Número de serie del documento de identidad del contacto principal. Formato '111.111.111' o '111111111'. Puede contener letras pero NUNCA guiones",
             "correo_contacto": "Dirección de email asociada al contacto principal",
             "telefono_contacto": "Número de teléfono asociado al contacto principal",
             "representante_legal": "Representante legal del comercio o sociedad",

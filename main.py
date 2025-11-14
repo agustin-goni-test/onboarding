@@ -29,13 +29,13 @@ def main():
     
     # Create agent and call method to set up initial state
     agent = DocumentCaptureAgent(llm)
-    # initial_graph_state = agent.prepare_initial_state()
+    initial_graph_state = agent.prepare_initial_state()
 
     # Find the final state (invoke the agent)
-    # final_state = agent.do_capture(initial_graph_state)
+    final_state = agent.do_capture(initial_graph_state)
 
-    # raw_data = final_state["results"]
-    raw_data = json_result_mockup()
+    raw_data = final_state["results"]
+    # raw_data = json_result_mockup()
     print("\n\nFin de la inferencia...\n\n")
 
     manager = VolcadoManager(json.loads(raw_data))

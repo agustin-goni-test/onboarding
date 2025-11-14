@@ -84,7 +84,7 @@ class DocumentHub:
             # If we could extract the text, we process the document info
             if ocr_text:
                 image_document = {
-                    "id": "image_document_1",
+                    "id": f"image_document_1{os.path.basename(image_path)}",
                     "filename": os.path.basename(image_path),
                     "processed_state": "pending",
                     "type": "text",
