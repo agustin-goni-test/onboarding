@@ -2,17 +2,17 @@ import operator
 from typing import Annotated, Dict, List, TypedDict, Optional, Any
 from langchain.tools import tool
 from langgraph.graph import StateGraph, END
-from langgraph.prebuilt import ToolNode
-from langchain_core.messages import BaseMessage, HumanMessage, SystemMessage
-from langchain_core.tools import BaseTool
+# from langgraph.prebuilt import ToolNode
+# from langchain_core.messages import BaseMessage, HumanMessage, SystemMessage
+# from langchain_core.tools import BaseTool
 from langchain.agents import create_agent # No AgentExecutor present. Is that a problem?
-from langchain_core.prompts import ChatPromptTemplate
-from langchain_google_genai import ChatGoogleGenerativeAI
+# from langchain_core.prompts import ChatPromptTemplate
+# from langchain_google_genai import ChatGoogleGenerativeAI
 from google import genai
 import json
 import re
 import os
-from datetime import datetime
+# from datetime import datetime
 from dotenv import load_dotenv
 from logger import Logger
 from input import DocumentHub
@@ -34,6 +34,7 @@ class DocumentCaptureState(TypedDict):
     all_fields: Dict[str, str] # List of all fields in the discovery
     fields_to_extract: Dict[str, str]  # Only the fields active for the iteration
     extracted_information: Dict[str, Dict[str, InformationNode]]  # This stores a dictionary that holds a result for each document
+    extracted_info_batch: Dict[str, InformationNode]
     results: Dict[str, InformationNode]
     iteration: int
     max_iterations: int
@@ -42,13 +43,14 @@ class DocumentCaptureState(TypedDict):
 
 
 class DocumentCaptureAgent:
-    def __init__(self, llm, client: genai.Client, max_iterations: int = 5):
+    def __init__(self, llm, client: genai.Client, max_iterations: int = 5, process_batch: bool = False):
         self.llm = llm
         self.max_iterations = max_iterations
         self.client = client
         self.logger = Logger()
         self.doc_hub = DocumentHub(client)
         self.graph = self._build_graph()
+        self.process_batch = process_batch
         
 
     def _build_graph(self) -> StateGraph:
@@ -115,44 +117,68 @@ class DocumentCaptureAgent:
         process_timer = timer.start_measurement()
 
         # Process each document
-        for document in documents:
-            if document["processed_state"] != "pending":
-                continue
+        if not self.process_batch:
+            for document in documents:
+                if document["processed_state"] != "pending":
+                    continue
 
-            self.logger.info(f"Procesando documento {document["filename"]}...")
-            
-            # Measure time for this file specifically
-            inference_timer = timer.start_measurement()
+                self.logger.info(f"Procesando documento {document["filename"]}...")
+                
+                # Measure time for this file specifically
+                inference_timer = timer.start_measurement()
 
-            # Build prompt and recover the uploaded file information
-            prompt = self.build_extraction_prompt(fields)
-            uploaded_file = self.client.files.get(name=document["reference"])
+                # Build prompt and recover the uploaded file information
+                prompt = self.build_extraction_prompt(fields)
+                uploaded_file = self.client.files.get(name=document["reference"])
 
-            # Use the client to do the inference
-            response = self.client.models.generate_content(
-                model=os.getenv("LLM_MODEL"),
-                contents=[prompt, uploaded_file]
-            )
+                # Use the client to do the inference
+                response = self.client.models.generate_content(
+                    model=os.getenv("LLM_MODEL"),
+                    contents=[prompt, uploaded_file]
+                )
 
-            # End timer and report the time measured
-            self.logger.info("Inferencia exitosa...")
-            elapsed_time_message = timer.report_time_elapsed(inference_timer, "inferencia de archivo")
+                # End timer and report the time measured
+                self.logger.info("Inferencia exitosa...")
+                elapsed_time_message = timer.report_time_elapsed(inference_timer, "inferencia de archivo")
+                self.logger.info(elapsed_time_message)
+
+                # Obtain de response, clean it and control null values
+                content_json = self.clean_and_parse_json(response.candidates[0].content.parts[0].text)
+                json_response = self.normalize_fields(content_json, fields)
+
+                # Update the document information to indicate it's been processed
+                document["processed_state"] = "processed"
+
+                # Store the results
+                state["extracted_information"][document["id"]] = json_response
+
+            # Measure and output entire processing time
+            elapsed_time_message = timer.report_time_elapsed(process_timer, "proceso de inferencia completo")
             self.logger.info(elapsed_time_message)
 
-            # Obtain de response, clean it and control null values
+        else:
+            batch_timer = timer.start_measurement()
+            uploaded_files = []
+            for document in documents:
+                file = self.client.files.get(name=document["reference"])
+                uploaded_files.append(file)
+
+            prompt = self.build_extraction_prompt(fields)
+
+            contents = [prompt] + uploaded_files
+            response = self.client.models.generate_content(
+                model=os.getenv("LLM_MODEL"),
+                contents=contents
+            )
+
+             # Obtain de response, clean it and control null values
             content_json = self.clean_and_parse_json(response.candidates[0].content.parts[0].text)
             json_response = self.normalize_fields(content_json, fields)
+            state["extracted_info_batch"] = json_response
 
-            # Update the document information to indicate it's been processed
-            document["processed_state"] = "processed"
-
-            # Store the results
-            state["extracted_information"][document["id"]] = json_response
-
-        # Measure and output entire processing time
-        elapsed_time_message = timer.report_time_elapsed(process_timer, "proceso de inferencia completo")
-        self.logger.info(elapsed_time_message)
-
+            batch_message = timer.report_time_elapsed(batch_timer, "proceso de inferencia completo")
+            self.logger.info(batch_message)
+                
         return state
     
     
@@ -258,6 +284,13 @@ class DocumentCaptureAgent:
         self.logger.info("---STATE: CURATE AND DISAMBIGUATE---")
         # TODO: Implement logic to review `extracted_data` for consistency,
         # merge partial results, or resolve ambiguities. This could be another LLM call.
+
+        # This state is only needed when processing documents in isolation
+        # If batch processing is defined, simply skip
+        if self.process_batch:
+            state["results"] = state["extracted_info_batch"]
+            return state
+
 
         extracted = state.get("extracted_information", {})
         fields = state.get("all_fields", {})
@@ -366,7 +399,9 @@ class DocumentCaptureAgent:
 
         # Search all fields whose confidence is below a threshold
         low_confidence = self.find_low_confidence_fields(state)
-        multiple_values = self.find_multiple_value_fields(state)
+        
+        if not self.process_batch:
+            multiple_values = self.find_multiple_value_fields(state)
 
         # If no field is low in confidence
         if not low_confidence:
@@ -384,15 +419,16 @@ class DocumentCaptureAgent:
             state["results"][field]["confidence"] = 100
         
         # If some fields have multiple values, settle them
-        for item in multiple_values:
-            field = item["field"]
-            confirmed_value = self.solve_multiple_values(item)
+        if not self.process_batch:
+            for item in multiple_values:
+                field = item["field"]
+                confirmed_value = self.solve_multiple_values(item)
 
-            # Set value according to the results of the function
-            state["results"][field]["value"] = confirmed_value.strip()
+                # Set value according to the results of the function
+                state["results"][field]["value"] = confirmed_value.strip()
 
-            # Set confidence results for field to max (because it was confirmed by user)
-            state["results"][field]["confidence"] = 100
+                # Set confidence results for field to max (because it was confirmed by user)
+                state["results"][field]["confidence"] = 100
 
         return state
 
@@ -500,7 +536,7 @@ class DocumentCaptureAgent:
         solved = False
         while not solved:
             if option_int > 0 and option_int < position:
-                return value[option_int-1]
+                return values[option_int-1]
             elif option_int == position:
                 new_value = input("Ingrese el nuevo valor para el campo: ")
                 return new_value
@@ -627,6 +663,7 @@ class DocumentCaptureAgent:
             "all_fields": fields,
             "fields_to_extract": fields,
             "extracted_information": {},
+            "extracted_info_batch": {},
             "results": {},
             "iteration": 0,
             "max_iterations": 5,

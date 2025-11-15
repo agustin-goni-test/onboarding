@@ -30,7 +30,7 @@ def main():
     client = genai.Client(api_key=os.getenv("LLM_API_KEY"))
     
     # Create agent and call method to set up initial state
-    agent = DocumentCaptureAgent(llm, client)
+    agent = DocumentCaptureAgent(llm, client, process_batch=True)
     initial_graph_state = agent.prepare_initial_state()
 
     # Find the final state (invoke the agent)
@@ -193,17 +193,18 @@ def prepare_initial_state() -> DocumentCaptureState:
         "rut_comercio": "El RUT que identifica la identidad del comercio o empresa que se afilia",
         "razon social": "Nombre legal o razón social del comercio, asociado al RUT registrado",
         "nombre_fantasía": "Nombre de fantasía por el que el comercio es conocido",
-        "direccion_comercio": "Dirección principal del comercio",
+        "direccion_comercio": "Dirección principal asociada al comercio (no puede estar asociada a otra entidad o persona)",
         "correo_comercio": "Correo central de comunicaciones asociado al comercio",
         "telefono_comercio": "Teléfono central asociado al comercio",
-        "nombre_contacto": "Nombre del contacto principal relacionado a la afiliación del comercio",
+        "nombre_contacto": "Nombre completo (nombres, todos los apellidos) 1del contacto principal relacionado a la afiliación del comercio",
         "num_serie": "Número de serie del documento de identidad del contacto principal",
         "correo_contacto": "Dirección de email asociada al contacto principal",
         "telefono_contacto": "Número de teléfono asociado al contacto principal",
         "representante_legal": "Representante legal del comercio o sociedad",
         "constitucion": "Accionistas del comercio y porcentaje de la operación que tengan",
         "num_cuenta": "Número de cuenta identificada para el comercio",
-        "tipo_cuenta": "Tipo de la cuenta declarada por el comercio",
+        "tipo_cuenta": "Tipo de la cuenta decla"
+        "rada por el comercio",
         "banco": "Banco al que pertenece la cuenta encontrada para el comercio",
         "nombre_cuenta": "Nombre del titular de la cuenta. Si no existe, asumir que es el representante legal, con confianza de 50"
         # ... other fields
