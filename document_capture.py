@@ -8,6 +8,7 @@ from langchain_core.tools import BaseTool
 from langchain.agents import create_agent # No AgentExecutor present. Is that a problem?
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_google_genai import ChatGoogleGenerativeAI
+from google import genai
 import json
 import re
 import os
@@ -15,8 +16,10 @@ from datetime import datetime
 from dotenv import load_dotenv
 from logger import Logger
 from input import DocumentHub
+from utils import TimeMeasure
 
 load_dotenv()
+timer = TimeMeasure()
 
 class InformationNode(TypedDict):
     match: bool
@@ -39,11 +42,12 @@ class DocumentCaptureState(TypedDict):
 
 
 class DocumentCaptureAgent:
-    def __init__(self, llm, max_iterations: int = 5):
+    def __init__(self, llm, client: genai.Client, max_iterations: int = 5):
         self.llm = llm
         self.max_iterations = max_iterations
+        self.client = client
         self.logger = Logger()
-        self.doc_hub = DocumentHub()
+        self.doc_hub = DocumentHub(client)
         self.graph = self._build_graph()
         
 
@@ -117,7 +121,8 @@ class DocumentCaptureAgent:
         state["extracted_information"] = {}
         
         # Measure the time it takes in inference
-        start_inference = datetime.now()
+        self.logger.info("Iniciando inferencia en los archivos...")
+        process_timer = timer.start_measurement()
 
         # Process each document
         for document in documents:
@@ -127,26 +132,26 @@ class DocumentCaptureAgent:
             self.logger.info(f"Procesando documento {document["filename"]}...")
             
             # Measure time for this file specifically
-            start_lap = datetime.now()
+            inference_timer = timer.start_measurement()
 
-            # Get the document content and build the prompt with the text and the
-            # list of fields
-            document_text = document["content"]
-            instruction = "Extrae todos los términos buscados del siguiente texto."
-            prompt = self.build_extraction_prompt(instruction, document_text, fields)
+            # Build prompt and recover the uploaded file information
+            prompt = self.build_extraction_prompt(fields)
+            uploaded_file = self.client.files.get(name=document["reference"])
 
-            # Invoke the LLM for inference and clean out the response
-            response = self.llm.invoke(prompt)
-            json_response = self.clean_and_parse_json(response.content)
+            # Use the client to do the inference
+            response = self.client.models.generate_content(
+                model=os.getenv("LLM_MODEL"),
+                contents=[prompt, uploaded_file]
+            )
 
-            # Use time to measure delay, concerning this file only
-            # Output time it took for the document
-            partial_stop = datetime.now()
-            time_lap = partial_stop - start_lap
-            total_lap_seconds = time_lap.total_seconds()
-            time_lap_minutes = int(total_lap_seconds // 60)
-            time_lap_seconds = int(total_lap_seconds % 60)            
-            self.logger.info(f"Tiempo para procesar archivo: {time_lap_minutes} minutos y {time_lap_seconds} segundos")
+            # End timer and report the time measured
+            self.logger.info("Inferencia exitosa...")
+            elapsed_time_message = timer.report_time_elapsed(inference_timer, "inferencia de archivo")
+            self.logger.info(elapsed_time_message)
+
+            # Obtain de response, clean it and control null values
+            content_json = self.clean_and_parse_json(response.candidates[0].content.parts[0].text)
+            json_response = self.normalize_fields(content_json, fields)
 
             # Update the document information to indicate it's been processed
             document["processed_state"] = "processed"
@@ -155,12 +160,8 @@ class DocumentCaptureAgent:
             state["extracted_information"][document["id"]] = json_response
 
         # Measure and output entire processing time
-        finish_point = datetime.now()
-        time_lap = finish_point - start_inference
-        total_lap_seconds = time_lap.total_seconds()
-        time_lap_minutes = int(total_lap_seconds // 60)
-        time_lap_seconds = int(total_lap_seconds % 60)
-        self.logger.info(f"Tiempo total para procesar todos los documentos: {time_lap_minutes} minutos y {time_lap_seconds} segundos")
+        elapsed_time_message = timer.report_time_elapsed(process_timer, "proceso de inferencia completo")
+        self.logger.info(elapsed_time_message)
 
         return state
     
@@ -183,31 +184,121 @@ class DocumentCaptureAgent:
         cleaned = re.sub(r"```[a-zA-Z]*", "", text)   # remove ```json or ``` or ```xyz
         cleaned = cleaned.replace("```", "")          # remove closing fences
         cleaned = cleaned.strip()
+
         return json.loads(cleaned)
+    
+
+    def normalize_fields(self, text, expected_fields):
+        '''Method to normalize fields, in case of nulls or some other problem.'''
+        result = {}
+
+        for field in expected_fields:
+            val =  text.get(field, None)
+    
+            # If the value is found, create it in the new result
+            if isinstance(val, dict):
+                result[field] = {
+                    "match": bool(val.get("match")) if val.get("match") is not None else False,
+                    "value": val.get("value", None),
+                    "explanation": val.get("explanation", None),
+                    "confidence": val.get("confidence", 0) if val.get("confidence") is not None else 0
+                }
+
+            # If the value is None, create an empty template
+            elif val is None:
+                result[field] = {"match": False, "value": None, "explanation": None, "confidence": 0}
+
+            # If there is a value, but with no structure, create structure with low confidence
+            else:
+                result[field] = {
+                    "match": True,
+                    "value": val,
+                    "explanation": "Modelo retornó valor sin estructura, asumiremos baja confianza",
+                    "confidence": 30
+                }
+
+        return result
+
+
+
             
 
 
-    def build_extraction_prompt(self, instruction: str,
-                                document: str,
-                                fields_dict: Dict[str, str]):
+    # def build_extraction_prompt(self, instruction: str,
+    #                             document: str,
+    #                             fields_dict: Dict[str, str]):
+    #     '''Method used to build the prompt for inference.'''
+
+    #     system_text = '''
+    #     Eres un asistente de extracción de información.
+
+    #     Vas a recibir 2 entradas:
+    #     1) Un documento, que puede consistir en un text o la decodificación OCR del contenido de una imagen.
+    #     2) Un diccionario de campos para extraer. Cada campo del diccionario contiene un nombre y la explicación de lo que hay que extraer.
+        
+    #     Por cada campo DEBES determinar si el documento contiene o no la información buscada.
+
+    #     Retorna un diccionario JSON cuyas claves son nombres de campo y cuyos valores son objetos con esta estructura:
+    #     {
+    #         "match": boolean,
+    #         "value": string | null,
+    #         "explanation": string | null,
+    #         "confidence": int (0-100) | null
+    #     }
+
+    #     Rules:
+    #     - match=true only if the field is **explicitly present** in the document.
+    #     - If match=false, then set value=null, explanation=null, confidence=null.
+    #     - explanation must reference **where** or **how** the model inferred the value
+    #     (e.g., “Found in line about business owner: ‘Razon social:…’”).
+    #     - confidence is 0–100. Use higher confidence when text is direct and explicit.
+    #     - If a paramter is had "rut" in the name, express the value without '.' in it, no matter how it comes
+    #     (e.g. if it is '10.345.678-2', express it as '10345678-2').
+    #     -'num_serie' must also be expressed with no '.' in it (e.g., instead of '123.456.789', express it as '123456789').
+    #     - If inferred but not explicit, match=true but confidence must be <70 and explanation must state inference.
+    #     - DO NOT hallucinate values not suggested in the text.
+    #     - If not all conditions for a value are present, confidence must be <70.
+    #     - Answer only JSON. No prose outside JSON.
+    #     '''
+
+    #     user_text = f'''
+    #     {instruction}
+
+    #     DOCUMENT:
+    #     {document}
+
+    #     FIELDS TO EXTRACT:
+    #     {json.dumps(fields_dict, indent=2)}
+    #     '''
+
+    #     return [
+    #         SystemMessage(system_text),
+    #         HumanMessage(user_text)
+    #     ]
+    
+
+
+
+    def build_extraction_prompt(self, fields_dict: Dict[str, str]):
         '''Method used to build the prompt for inference.'''
 
-        system_text = '''
+        prompt=f'''
         Eres un asistente de extracción de información.
 
         Vas a recibir 2 entradas:
-        1) Un documento, que puede consistir en un text o la decodificación OCR del contenido de una imagen.
-        2) Un diccionario de campos para extraer. Cada campo del diccionario contiene un nombre y la explicación de lo que hay que extraer.
-        
+        1) Un documento, quue consiste en una imagen que captura información relevante
+        2) Un diccionario de campos (field descriptions) para extraer. Cada campo del diccionario contiene un nombre y la explicación de lo que hay que extraer.
+
         Por cada campo DEBES determinar si el documento contiene o no la información buscada.
 
-        Retorna un diccionario JSON cuyas claves son nombres de campo y cuyos valores son objetos con esta estructura:
-        {
+        Retorna un diccionario JSON cuyas claves son nombres de campo y cuyos valores son objetos con la estructura de abajo.
+        DEBE existir un objeto con exactamente estas atributos en todos los casos, incluso para campos no encontrados:
+        {{
             "match": boolean,
             "value": string | null,
             "explanation": string | null,
             "confidence": int (0-100) | null
-        }
+        }}
 
         Rules:
         - match=true only if the field is **explicitly present** in the document.
@@ -222,22 +313,13 @@ class DocumentCaptureAgent:
         - DO NOT hallucinate values not suggested in the text.
         - If not all conditions for a value are present, confidence must be <70.
         - Answer only JSON. No prose outside JSON.
+
+        Field descriptions:
+        {fields_dict}
+
         '''
 
-        user_text = f'''
-        {instruction}
-
-        DOCUMENT:
-        {document}
-
-        FIELDS TO EXTRACT:
-        {json.dumps(fields_dict, indent=2)}
-        '''
-
-        return [
-            SystemMessage(system_text),
-            HumanMessage(user_text)
-        ]
+        return prompt
 
 
     def curate_and_disambiguate(self, state: DocumentCaptureState) -> DocumentCaptureState:
@@ -253,6 +335,7 @@ class DocumentCaptureAgent:
         existing_results = state.get("results", {})
         new_results = {}
 
+        self.logger.info("Combinando resultados de las inferencias...")
 
         # Iterate over all fields to extract
         for field_name in fields.keys():
@@ -361,15 +444,15 @@ class DocumentCaptureAgent:
             return state
         
         # If some fields are low in confidence, review them
-        # for item in low_confidence:
-        #     field = item["field"]
-        #     confirmed_value = self.solve_low_confidence(item)
+        for item in low_confidence:
+            field = item["field"]
+            confirmed_value = self.solve_low_confidence(item)
             
-        #     # Set value according to the results of the function
-        #     state["results"][field]["value"] = confirmed_value.strip()
+            # Set value according to the results of the function
+            state["results"][field]["value"] = confirmed_value.strip()
 
-        #     # Set confidence results for field to max (because it was confirmed by user)
-        #     state["results"][field]["confidence"] = 100
+            # Set confidence results for field to max (because it was confirmed by user)
+            state["results"][field]["confidence"] = 100
         
         # If some fields have multiple values, settle them
         for item in multiple_values:
@@ -397,6 +480,10 @@ class DocumentCaptureAgent:
             value = result.get("value")
             confidence = result.get("confidence")
 
+            # Regardless of confidence, exclude if there are multiple values
+            if isinstance(value, list) and len(value) > 1:
+                continue               
+
             # If confidence does not meet threshold, add to low confidence list
             if confidence and confidence < threshold:
                 low.append({
@@ -404,6 +491,7 @@ class DocumentCaptureAgent:
                     "value": value,
                     "confidence": confidence
                 })
+                self.logger.info(f"Nivel de confianza bajo detectado para campo {field}")
 
         return low
     
@@ -453,6 +541,7 @@ class DocumentCaptureAgent:
                     "values": value,
                     "confidence": result_data.get("confidence", 0)
                 })
+                self.logger.info(f"Campo {field} tiene más de un valor encontrado")
 
         return multi_value_fields
     

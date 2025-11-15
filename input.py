@@ -6,47 +6,118 @@ from typing import List, Dict, Any, Optional
 from pypdf import PdfReader
 from PIL import Image, ImageOps, ImageFilter
 import pytesseract
+from google import genai
 from logger import Logger
+from utils import TimeMeasure
 from dotenv import load_dotenv
 
 load_dotenv()
+timer = TimeMeasure()
+
+API_KEY = os.getenv("LL_API_KEY")
+MODEL = os.getenv("LLM_MODEL")
 
 class DocumentHub:
-    def __init__(self):
+    def __init__(self, client):
         self.logger = Logger()
         self.source_folder = os.getenv("BUSINESS_INFO_FOLDER", "sources")
         self.document_list: List[Dict[str, Any]] = []
+
+        # Add the Gemini client for file upload
+        self.client = client
+
+
+    # def load_documents(self):
+    #     self.logger.info(f"Iniciando análisis de archivos desde ruta {self.source_folder}")
+
+    #     for file_path in glob.glob(os.path.join(self.source_folder, "*")):
+
+    #         # Check if file had already been loaded before. If so, ignore
+    #         if any(doc["filename"] == os.path.basename(file_path) for doc in self.document_list):
+    #             self.logger.info(f"Archivo {file_path} ya fue procesado anteriormente... ignorando...")
+    #             continue
+
+    #         self.logger.info(f"Procesando archivo {file_path}")
+    #         document: Optional[Dict[str, Any]] = None
+    #         try:
+    #             if file_path.lower().endswith(".pdf"):
+    #                 self.logger.info(f"Archivo {file_path} es PDF, leyendo texto...")
+    #                 document = self._process_pdf_document(file_path)
+    #             elif file_path.lower().endswith((".jpg", ".jpeg", ".png")):
+    #                 self.logger.info(f"Archivo {file_path} es imagen, extrayendo texto por OCR...")
+    #                 document = self._process_image_document(file_path)
+    #             else:
+    #                 self.logger.warning(f"Tipo de archivo no soportado: {file_path}")
+    #                 continue
+
+    #             if document:
+    #                 self.logger.info("Extracción de texto exitosa...")
+    #                 self.document_list.append(document)
+
+    #         except Exception as e:
+    #             self.logger.error(f"Error procesando archivo {file_path}: {e}")
+    #             continue
 
     def load_documents(self):
         self.logger.info(f"Iniciando análisis de archivos desde ruta {self.source_folder}")
 
         for file_path in glob.glob(os.path.join(self.source_folder, "*")):
 
+            # Capture the filename in question
+            filename = os.path.basename(file_path)
+
             # Check if file had already been loaded before. If so, ignore
-            if any(doc["filename"] == os.path.basename(file_path) for doc in self.document_list):
-                self.logger.info(f"Archivo {file_path} ya fue procesado anteriormente... ignorando...")
+            if any(doc["filename"] == filename for doc in self.document_list):
+                self.logger.info(f"Archivo {filename} ya fue procesado anteriormente... ignorando...")
                 continue
 
             self.logger.info(f"Procesando archivo {file_path}")
             document: Optional[Dict[str, Any]] = None
+
             try:
+                # Use time measurement
+                upload_id = timer.start_measurement()
+
+                # Upload file to Gemini client
+                uploaded = self.client.files.upload(file=file_path)
+                gemini_name = uploaded.name
+
+                # End time measurement
+                time_result = timer.report_time_elapsed(upload_id, "subida de archivo")
+                self.logger.info(time_result)
+                
+
                 if file_path.lower().endswith(".pdf"):
-                    self.logger.info(f"Archivo {file_path} es PDF, leyendo texto...")
-                    document = self._process_pdf_document(file_path)
+                    self.logger.info(f"Archivo {file_path} es PDF")
+                    document = self._create_document_entry("pdf", filename, gemini_name)
+
                 elif file_path.lower().endswith((".jpg", ".jpeg", ".png")):
-                    self.logger.info(f"Archivo {file_path} es imagen, extrayendo texto por OCR...")
-                    document = self._process_image_document(file_path)
+                    self.logger.info(f"Archivo {file_path} es imagen")
+                    document = self._create_document_entry("image", filename, gemini_name)
+
                 else:
                     self.logger.warning(f"Tipo de archivo no soportado: {file_path}")
                     continue
 
                 if document:
-                    self.logger.info("Extracción de texto exitosa...")
+                    self.logger.info("Documento cargado al cliente con éxito...")
                     self.document_list.append(document)
 
             except Exception as e:
                 self.logger.error(f"Error procesando archivo {file_path}: {e}")
                 continue
+
+
+    def _create_document_entry(self, type: str, filename: str, gemini_name: str):
+        document_entry = {
+            "id": f"doc_{filename}",
+            "filename": filename,
+            "reference": gemini_name, 
+            "processed_state": "pending",
+            "type": type
+        }
+
+        return document_entry
 
     def _process_pdf_document(self, pdf_path: str) -> Optional[Dict[str, Any]]:
         '''Returns the representation of a PDF document for processing'''

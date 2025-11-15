@@ -8,6 +8,7 @@ from pypdf import PdfReader
 from document_capture import DocumentCaptureState, DocumentCaptureAgent
 from commerce_integration import VolcadoManager, EntidadesVolcado
 from langchain_google_genai import ChatGoogleGenerativeAI
+from google import genai
 from PIL import Image, ImageOps, ImageFilter
 import pytesseract
 from logger import Logger
@@ -24,11 +25,12 @@ def main():
 
     logger.debug("We are in DEBUG mode...")
 
-    # Create LLM for the agent
+    # Create LLM for the agent and Gemini client
     llm = create_llm()
+    client = genai.Client(api_key=os.getenv("LLM_API_KEY"))
     
     # Create agent and call method to set up initial state
-    agent = DocumentCaptureAgent(llm)
+    agent = DocumentCaptureAgent(llm, client)
     initial_graph_state = agent.prepare_initial_state()
 
     # Find the final state (invoke the agent)
@@ -37,6 +39,8 @@ def main():
     raw_data = final_state["results"]
     # raw_data = json_result_mockup()
     print("\n\nFin de la inferencia...\n\n")
+    input("Presione una tecla para continuar...")
+
 
     manager = VolcadoManager(raw_data)
     manager.complete_results()

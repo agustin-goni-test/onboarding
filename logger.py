@@ -1,5 +1,6 @@
 import logging
 import os
+import sys
 from datetime import datetime
 from dotenv import load_dotenv
 
@@ -35,7 +36,7 @@ class Logger:
             datefmt='%H:%M:%S',
             handlers=[
                 logging.FileHandler(filename),
-                logging.StreamHandler()
+                logging.StreamHandler(stream=sys.stdout)
             ],
             force=True
         )
