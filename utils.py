@@ -30,8 +30,8 @@ class TimeMeasure:
     def report_time_elapsed(self, id: int, event: str) -> str:
         '''Method to report the time elapsed'''
         time_elapsed = self.calculate_time_elapsed(id)
-        return (f"Tiempo transcurrido en {event}: {time_elapsed['minutes']} minutos, " 
-            f"{time_elapsed['seconds']} segundos y {time_elapsed['milliseconds']} milisegundos.")
+        return (f"\nTiempo transcurrido en {event}: {time_elapsed['minutes']} minutos, " 
+            f"{time_elapsed['seconds']} segundos y {time_elapsed['milliseconds']} milisegundos.\n")
 
 
     def calculate_time_elapsed(self, id: int):

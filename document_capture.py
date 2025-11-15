@@ -73,20 +73,10 @@ class DocumentCaptureAgent:
         workflow.add_edge("curate_and_disambiguate", "enough_confidence")
         workflow.add_edge("enough_confidence", "enough_information")
         
-        # This is probably not quite right
+        # Leads to the graph's exit
         workflow.add_edge("final_approval", END)
 
-        
-        # Add conditional edges
-        # workflow.add_conditional_edges(
-        #     "enough_confidence",
-        #     self.enough_confidence,
-        #     {
-        #         "confident": "confirm_and_adjust",
-        #         "not_confident": "offer_data_to_user"
-        #     }
-        # )
-
+        # Add the conditional transition for either another iteration or final approval
         workflow.add_conditional_edges(
             "enough_information",
             self.route_sufficient_info,
@@ -218,65 +208,6 @@ class DocumentCaptureAgent:
                 }
 
         return result
-
-
-
-            
-
-
-    # def build_extraction_prompt(self, instruction: str,
-    #                             document: str,
-    #                             fields_dict: Dict[str, str]):
-    #     '''Method used to build the prompt for inference.'''
-
-    #     system_text = '''
-    #     Eres un asistente de extracción de información.
-
-    #     Vas a recibir 2 entradas:
-    #     1) Un documento, que puede consistir en un text o la decodificación OCR del contenido de una imagen.
-    #     2) Un diccionario de campos para extraer. Cada campo del diccionario contiene un nombre y la explicación de lo que hay que extraer.
-        
-    #     Por cada campo DEBES determinar si el documento contiene o no la información buscada.
-
-    #     Retorna un diccionario JSON cuyas claves son nombres de campo y cuyos valores son objetos con esta estructura:
-    #     {
-    #         "match": boolean,
-    #         "value": string | null,
-    #         "explanation": string | null,
-    #         "confidence": int (0-100) | null
-    #     }
-
-    #     Rules:
-    #     - match=true only if the field is **explicitly present** in the document.
-    #     - If match=false, then set value=null, explanation=null, confidence=null.
-    #     - explanation must reference **where** or **how** the model inferred the value
-    #     (e.g., “Found in line about business owner: ‘Razon social:…’”).
-    #     - confidence is 0–100. Use higher confidence when text is direct and explicit.
-    #     - If a paramter is had "rut" in the name, express the value without '.' in it, no matter how it comes
-    #     (e.g. if it is '10.345.678-2', express it as '10345678-2').
-    #     -'num_serie' must also be expressed with no '.' in it (e.g., instead of '123.456.789', express it as '123456789').
-    #     - If inferred but not explicit, match=true but confidence must be <70 and explanation must state inference.
-    #     - DO NOT hallucinate values not suggested in the text.
-    #     - If not all conditions for a value are present, confidence must be <70.
-    #     - Answer only JSON. No prose outside JSON.
-    #     '''
-
-    #     user_text = f'''
-    #     {instruction}
-
-    #     DOCUMENT:
-    #     {document}
-
-    #     FIELDS TO EXTRACT:
-    #     {json.dumps(fields_dict, indent=2)}
-    #     '''
-
-    #     return [
-    #         SystemMessage(system_text),
-    #         HumanMessage(user_text)
-    #     ]
-    
-
 
 
     def build_extraction_prompt(self, fields_dict: Dict[str, str]):
@@ -428,7 +359,6 @@ class DocumentCaptureAgent:
         state["results"] = new_results
         return state
 
-
     
     def enough_confidence(self, state: DocumentCaptureState) -> DocumentCaptureState:
         '''Should prompt user if confidence is low'''
@@ -441,7 +371,6 @@ class DocumentCaptureAgent:
         # If no field is low in confidence
         if not low_confidence:
             print("Ningún campo con poca confianza...")
-            return state
         
         # If some fields are low in confidence, review them
         for item in low_confidence:
@@ -579,6 +508,7 @@ class DocumentCaptureAgent:
                 print("Ingrese una opción válida...\n")
     
 
+    ####### NO LONGER NEEDED!!!!!
     def confirm_or_adjust(self, state: DocumentCaptureState) -> DocumentCaptureState:
         self.logger.info("---STATE: CONFIRM OR ADJUST---")
         # This node is for low-confidence extractions. It could trigger a
@@ -586,6 +516,7 @@ class DocumentCaptureAgent:
         # `interrupt_before` when compiling the graph to pause execution here.
         self.logger.warn("Confidence is low. Looping back to extraction after adjustment (if any).")
         return state
+    
 
     def enough_information(self, state: DocumentCaptureState) -> DocumentCaptureState:
         self.logger.info("---STATE: ENOUGH INFORMATION---")
@@ -626,7 +557,6 @@ class DocumentCaptureAgent:
 
         return is_sufficient
         
-    
 
 
 
@@ -636,13 +566,14 @@ class DocumentCaptureAgent:
 
         results = state["results"]
 
-        print("\n\nLista de datos obtenidos:")
+        print("\n\nLista de datos obtenidos:\n")
         for field, result in results.items():
             print(f"{field}: {result["value"]}")
 
         return state
     
 
+    ####### NO LONGER NEEDED!!!!!
     def offer_data_to_user(self, state: DocumentCaptureState) -> DocumentCaptureState:
         '''This is were we offer a lower confident option to the user for clarification'''
         self.logger.info("---STATE: OFFER DATA TO USER---")
@@ -669,28 +600,6 @@ class DocumentCaptureAgent:
 
         self.doc_hub.load_documents()
         document_list = self.doc_hub.document_list
-
-
-        # The list of fields to validate
-        # fields = {
-        #     "rut_comercio": "El RUT que identifica la identidad del comercio o empresa que se afilia",
-        #     "razon social": "Nombre legal o razón social del comercio, asociado al RUT registrado",
-        #     "nombre_fantasía": "Nombre de fantasía por el que el comercio es conocido",
-        #     "direccion_comercio": "Dirección del comercio, con calle y número, y opcionalmente comuna y región (ej: 'Teatinos 500, Santiago, RM'). Si no hay calle o número la confianza es baja",
-        #     "correo_comercio": "Correo central de comunicaciones asociado al comercio",
-        #     "telefono_comercio": "Teléfono central asociado al comercio",
-        #     "nombre_contacto": "Nombre del contacto principal relacionado a la afiliación del comercio",
-        #     "num_serie": "Número de serie del documento de identidad del contacto principal. Formato '111.111.111' o '111111111'. Puede contener letras pero no guiones",
-        #     "correo_contacto": "Dirección de email asociada al contacto principal",
-        #     "telefono_contacto": "Número de teléfono asociado al contacto principal",
-        #     "representante_legal": "Representante legal del comercio o sociedad",
-        #     "constitucion": "Accionistas del comercio y porcentaje de la operación que tengan",
-        #     "num_cuenta": "Número de cuenta identificada para el comercio",
-        #     "tipo_cuenta": "Tipo de la cuenta declarada por el comercio",
-        #     "banco": "Banco al que pertenece la cuenta encontrada para el comercio",
-        #     "nombre_cuenta": "Nombre del titular de la cuenta. Si no existe, asumir que es el representante legal, con confianza de 50"
-        #     # ... other fields
-        # }
 
         fields = {
             "rut_comercio": "El RUT que identifica el comercio o empresa que se afilia. DEBE contener guión (ejemplo '4.567.389-1' o '45768945-4')",

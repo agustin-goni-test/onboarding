@@ -27,40 +27,13 @@ class DocumentHub:
         self.client = client
 
 
-    # def load_documents(self):
-    #     self.logger.info(f"Iniciando análisis de archivos desde ruta {self.source_folder}")
-
-    #     for file_path in glob.glob(os.path.join(self.source_folder, "*")):
-
-    #         # Check if file had already been loaded before. If so, ignore
-    #         if any(doc["filename"] == os.path.basename(file_path) for doc in self.document_list):
-    #             self.logger.info(f"Archivo {file_path} ya fue procesado anteriormente... ignorando...")
-    #             continue
-
-    #         self.logger.info(f"Procesando archivo {file_path}")
-    #         document: Optional[Dict[str, Any]] = None
-    #         try:
-    #             if file_path.lower().endswith(".pdf"):
-    #                 self.logger.info(f"Archivo {file_path} es PDF, leyendo texto...")
-    #                 document = self._process_pdf_document(file_path)
-    #             elif file_path.lower().endswith((".jpg", ".jpeg", ".png")):
-    #                 self.logger.info(f"Archivo {file_path} es imagen, extrayendo texto por OCR...")
-    #                 document = self._process_image_document(file_path)
-    #             else:
-    #                 self.logger.warning(f"Tipo de archivo no soportado: {file_path}")
-    #                 continue
-
-    #             if document:
-    #                 self.logger.info("Extracción de texto exitosa...")
-    #                 self.document_list.append(document)
-
-    #         except Exception as e:
-    #             self.logger.error(f"Error procesando archivo {file_path}: {e}")
-    #             continue
-
     def load_documents(self):
         self.logger.info(f"Iniciando análisis de archivos desde ruta {self.source_folder}")
 
+        # Measure overall upload time for all files
+        global_upload_id = timer.start_measurement()
+
+        # Look for every file in the folder
         for file_path in glob.glob(os.path.join(self.source_folder, "*")):
 
             # Capture the filename in question
@@ -106,6 +79,9 @@ class DocumentHub:
             except Exception as e:
                 self.logger.error(f"Error procesando archivo {file_path}: {e}")
                 continue
+
+        total_time_message = timer.report_time_elapsed(global_upload_id, "carga de todos los archivos")
+        self.logger.info(total_time_message)
 
 
     def _create_document_entry(self, type: str, filename: str, gemini_name: str):
