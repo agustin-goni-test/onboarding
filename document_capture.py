@@ -11,6 +11,7 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 import json
 import re
 import os
+from datetime import datetime
 from dotenv import load_dotenv
 from logger import Logger
 from input import DocumentHub
@@ -115,21 +116,37 @@ class DocumentCaptureAgent:
         # Recycle information extraction
         state["extracted_information"] = {}
         
+        # Measure the time it takes in inference
+        start_inference = datetime.now()
+
         # Process each document
         for document in documents:
             if document["processed_state"] != "pending":
                 continue
 
             self.logger.info(f"Procesando documento {document["filename"]}...")
+            
+            # Measure time for this file specifically
+            start_lap = datetime.now()
 
             # Get the document content and build the prompt with the text and the
             # list of fields
             document_text = document["content"]
-            prompt = self.build_extraction_prompt(document_text, fields)
+            instruction = "Extrae todos los términos buscados del siguiente texto."
+            prompt = self.build_extraction_prompt(instruction, document_text, fields)
 
             # Invoke the LLM for inference and clean out the response
             response = self.llm.invoke(prompt)
             json_response = self.clean_and_parse_json(response.content)
+
+            # Use time to measure delay, concerning this file only
+            # Output time it took for the document
+            partial_stop = datetime.now()
+            time_lap = partial_stop - start_lap
+            total_lap_seconds = time_lap.total_seconds()
+            time_lap_minutes = int(total_lap_seconds // 60)
+            time_lap_seconds = int(total_lap_seconds % 60)            
+            self.logger.info(f"Tiempo para procesar archivo: {time_lap_minutes} minutos y {time_lap_seconds} segundos")
 
             # Update the document information to indicate it's been processed
             document["processed_state"] = "processed"
@@ -137,7 +154,16 @@ class DocumentCaptureAgent:
             # Store the results
             state["extracted_information"][document["id"]] = json_response
 
+        # Measure and output entire processing time
+        finish_point = datetime.now()
+        time_lap = finish_point - start_inference
+        total_lap_seconds = time_lap.total_seconds()
+        time_lap_minutes = int(total_lap_seconds // 60)
+        time_lap_seconds = int(total_lap_seconds % 60)
+        self.logger.info(f"Tiempo total para procesar todos los documentos: {time_lap_minutes} minutos y {time_lap_seconds} segundos")
+
         return state
+    
     
     def get_fields_list(self, original_fields: Dict[str, str], state: DocumentCaptureState) -> Dict[str, str]:
         '''Creates a new list of fields to extract based on what's already been found.'''
@@ -161,7 +187,11 @@ class DocumentCaptureAgent:
             
 
 
-    def build_extraction_prompt(self, document, fields_dict):
+    def build_extraction_prompt(self, instruction: str,
+                                document: str,
+                                fields_dict: Dict[str, str]):
+        '''Method used to build the prompt for inference.'''
+
         system_text = '''
         Eres un asistente de extracción de información.
 
@@ -185,6 +215,9 @@ class DocumentCaptureAgent:
         - explanation must reference **where** or **how** the model inferred the value
         (e.g., “Found in line about business owner: ‘Razon social:…’”).
         - confidence is 0–100. Use higher confidence when text is direct and explicit.
+        - If a paramter is had "rut" in the name, express the value without '.' in it, no matter how it comes
+        (e.g. if it is '10.345.678-2', express it as '10345678-2').
+        -'num_serie' must also be expressed with no '.' in it (e.g., instead of '123.456.789', express it as '123456789').
         - If inferred but not explicit, match=true but confidence must be <70 and explanation must state inference.
         - DO NOT hallucinate values not suggested in the text.
         - If not all conditions for a value are present, confidence must be <70.
@@ -192,47 +225,14 @@ class DocumentCaptureAgent:
         '''
 
         user_text = f'''
+        {instruction}
+
         DOCUMENT:
         {document}
 
         FIELDS TO EXTRACT:
         {json.dumps(fields_dict, indent=2)}
         '''
-
-        # content_blocks = []
-
-        # # Convert the document into multi modal blocks
-        # # First case, document is PDF (text)
-        # if isinstance(document, str):
-        #     content_blocks.append({
-        #         "type": "text",
-        #         "text": document
-        #     })
-
-        # elif isinstance(document, list):
-        #     for part in document:
-        #         if "text" in part:
-        #             content_blocks.append({
-        #                 "type": "text",
-        #                 "text": part["text"]
-        #             })
-
-        #         elif "inLineData" in part:
-        #             img = part["inLineData"]
-        #             content_blocks.append({
-        #                 "type": "image",
-        #                 "source": {
-        #                     "type": "base64",
-        #                     "media_type": img["mimeType"],
-        #                     "data": img["data"]
-        #                 }
-        #             })
-                   
-
-        # content_blocks.append({
-        #     "type": "text",
-        #     "text": f"FIELDS TO EXTRACT:\n{json.dumps(fields_dict, indent=2)}"
-        # })        
 
         return [
             SystemMessage(system_text),
@@ -361,26 +361,27 @@ class DocumentCaptureAgent:
             return state
         
         # If some fields are low in confidence, review them
-        for item in low_confidence:
-            field = item["field"]
-            confirmed_value = self.solve_low_confidence(item)
-            # value = item["value"]
-            # confidence = item["confidence"]
-
-            # print(f"Campo: {field}, Valor: {value}, Confianza: {confidence}")
-
-            # new_value = input("Confirmar el valor (ENTER) o ingresar uno nuevo: ")
-
-            # # If user inputs something, update the value
-            # if new_value.strip():
-            #     state["results"][field]["value"] = new_value.strip()
+        # for item in low_confidence:
+        #     field = item["field"]
+        #     confirmed_value = self.solve_low_confidence(item)
             
+        #     # Set value according to the results of the function
+        #     state["results"][field]["value"] = confirmed_value.strip()
+
+        #     # Set confidence results for field to max (because it was confirmed by user)
+        #     state["results"][field]["confidence"] = 100
+        
+        # If some fields have multiple values, settle them
+        for item in multiple_values:
+            field = item["field"]
+            confirmed_value = self.solve_multiple_values(item)
+
             # Set value according to the results of the function
             state["results"][field]["value"] = confirmed_value.strip()
 
             # Set confidence results for field to max (because it was confirmed by user)
             state["results"][field]["confidence"] = 100
-           
+
         return state
 
 
@@ -429,9 +430,7 @@ class DocumentCaptureAgent:
             else:
                 print("Elija una opción válida.\n")
 
-
         
-
     
     def find_multiple_value_fields(self, state: DocumentCaptureState) -> List[Dict[str, Any]]:
         '''
@@ -456,6 +455,39 @@ class DocumentCaptureAgent:
                 })
 
         return multi_value_fields
+    
+
+    def solve_multiple_values(self, item) -> str:
+        '''
+        If a field had more than one value inferred, disambiguate here.
+        This allows you to choose a value and then move on.
+        '''
+        field = item["field"]
+        values = item["values"]
+
+        print(f"\nCampo {field} tiene más de un valor posible y requiere aclaración.")
+        print("Valores encontrados:")
+        for value in values:
+            print(f"'{value}'")
+
+        print("Seleccionar opción para continuar:")
+        position = 1
+        for value in values:
+            print(f"{position}. Mantener '{value}'")
+            position += 1
+        print(f"{position}. Ingresar un nuevo valor")
+        option = input("Seleccionar la opción: ")
+        option_int = int(option)
+
+        solved = False
+        while not solved:
+            if option_int > 0 and option_int < position:
+                return value[option_int-1]
+            elif option_int == position:
+                new_value = input("Ingrese el nuevo valor para el campo: ")
+                return new_value
+            else:
+                print("Ingrese una opción válida...\n")
     
 
     def confirm_or_adjust(self, state: DocumentCaptureState) -> DocumentCaptureState:
@@ -573,8 +605,8 @@ class DocumentCaptureAgent:
 
         fields = {
             "rut_comercio": "El RUT que identifica el comercio o empresa que se afilia. DEBE contener guión (ejemplo '4.567.389-1' o '45768945-4')",
-            "razon social": "Nombre legal o razón social del comercio, asociado al RUT registrado",
-            "nombre_fantasía": "Nombre de fantasía por el que el comercio es conocido",
+            "razon_social": "Nombre legal o razón social del comercio, asociado al RUT registrado",
+            "nombre_fantasia": "Nombre de fantasía por el que el comercio es conocido",
             "direccion_comercio": "Dirección del comercio, con calle y número, y opcionalmente comuna y región (ej: 'Teatinos 500, Santiago, RM'). Si no hay calle o número la confianza es baja",
             "actividad_economica": "Actividad económica a la que se dedica la sociedad del comercio",
             "nombre_contacto": "Nombre del contacto principal relacionado a la afiliación del comercio",
@@ -585,7 +617,7 @@ class DocumentCaptureAgent:
             "representante_legal": "Representante legal del comercio o sociedad",
             "constitucion": "Accionistas del comercio y porcentaje de la operación que tengan",
             "num_cuenta": "Número de cuenta identificada para el comercio",
-            "tipo_cuenta": "Tipo de la cuenta declarada por el comercio",
+            "tipo_cuenta": "Tipo de la cuenta declarada por el comercio. Indicar sólo el tipo, omitir la palabra cuenta (ejemplo: 'ahorro' en vez de 'cuenta de ahorro' o 'cuenta ahorro')",
             "banco": "Banco al que pertenece la cuenta encontrada para el comercio",
             "nombre_cuenta": "Nombre del titular de la cuenta. Si no existe, asumir que es el representante legal, con confianza de 50"
             # ... other fields

@@ -1,7 +1,7 @@
 {
     "integrationCommerce":
     {
-        "commerceRut":"52004084-6",  
+        "commerceRut":"78240405-9",  
         "businessName":"Prueba no despachar Razon Social",  
         "businessLine":292,  
         "origin":"AUTOAFILIACION_POS",  
@@ -26,7 +26,7 @@
     },
     "integrationBankAccount":
     {
-        "commerceRut":"52004084-6",
+        "commerceRut":"78240405-9",
         "bankCode":17,
         "ownerFullName":"Prueba no despachar Razon Social",
         "ownerRut":"52004084-6",
@@ -39,7 +39,7 @@
     },
     "integrationContact":
     {
-        "commerceRut":"52004084-6",
+        "commerceRut":"78240405-9",
         "legalRepresentative":false,
         "names":"Prueba no Despachar Nombre",
         "lastName":"Prueba no despachar pat",
@@ -67,7 +67,7 @@
                 "addressWithoutNumber":"AVDA SALESIANOS"
             },
             "businessName":"Prueba no despachar Razon Social",
-            "commerceRut":"52004084-6",
+            "commerceRut":"78240405-9",
             "email":"HERNAN.PIMENTEL@KLAP.CL",
             "fantasyName":"Prueba no despachar Fantasia",
             "description":"",
@@ -90,7 +90,7 @@
             "integrationTerminals":
                 [
                     {
-                        "commerceRut":"52004084-6",
+                        "commerceRut":"78240405-9",
                         "branchCode":0,
                         "terminalId":null,
                         "contractId":"0",
@@ -105,7 +105,7 @@
                         "configurationType":"RED_POS"
                     }
                     ,{
-                        "commerceRut":"52004084-6",
+                        "commerceRut":"78240405-9",
                         "branchCode":0,
                         "terminalId":null,
                         "contractId":"0",
@@ -134,7 +134,7 @@
                     "addressWithoutNumber":"TEATINOS"
                 },
                 "businessName":"Prueba no despachar Razon Social",
-                "commerceRut":"52004084-6",
+                "commerceRut":"78240405-9",
                 "email":"HERNAN.PIMENTEL@KLAP.CL",
                 "fantasyName":"Prueba no despachar Sucursal 1",
                 "description":"",
@@ -142,10 +142,10 @@
                 "mobilePhoneNumber":"997910554",
                 "name":"Prueba no Despachar Nombre",
                 "webSite":"",
-                "mantisaBill":"52004084-6",
+                "mantisaBill":"78240405-9",
                 "dvBill":"6",
                 "bankAccount":"111111111111111111",
-                "mantisaHolder":"52004084-6",
+                "mantisaHolder":"78240405-9",
                 "integrationType":"PRO MAX",
                 "user":"AYC",
                 "emailContact":"HERNAN.PIMENTEL@KLAP.CL",
@@ -157,7 +157,7 @@
                 "integrationTerminals":
                 [
                     {
-                        "commerceRut":"52004084-6",
+                        "commerceRut":"78240405-9",
                         "branchCode":0,
                         "terminalId":null,
                         "contractId":"0",

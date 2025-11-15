@@ -259,9 +259,9 @@ class VolcadoManager:
         commerce.commerceRut = self._get_value("rut_comercio")
         commerce.businessName = self._get_value("razon_social")
         commerce.fantasyName = self._get_value("nombre_fantasia")
-        commerce.businessLine = 0 # pending
+        commerce.businessLine = 497 # pending
         commerce.origin = "AUTOAFILIACION POS"
-        commerce.email = self._get_value("correo_comercio")
+        commerce.email = self._get_value("correo_contacto")
         commerce.emailPayment = self._get_value("correo_contacto")
 
         # Obtain parts of the name (use contact name)
@@ -332,18 +332,17 @@ class VolcadoManager:
         address = IntegrationAddress()
 
         # Add the elements --- ALL OF THIS IS STILL PENDING
-        address.region = 0 # pending
-        address.comune = 0 # pending
-        address.number = "" # pending
-        address.fullAddress = [] # pending
-        address.addressWithoutNumber = "" # pending
+        address.region = 13 # pending
+        address.comune = 95 # pending
+        address.number = "720" # pending
+        address.fullAddress = ["AVDA SALESIANOS 720"," SAN MIGUEL"," METROPOLITANA DE SANTIAGO"] # pending
+        address.addressWithoutNumber = "AVDA SALESIANOS" # pending
 
         # Return address object
         return address
     
 
-    # PENDING: Will the account name be the same as the contact name?
-    # PENDING: Rut de contacto
+    # ASSUMPTION: Account name is contact name
     def get_integration_bank_account_data(self) -> IntegrationBankAccount:
         '''Create the bank account information'''
         # Create bank account object
@@ -359,11 +358,13 @@ class VolcadoManager:
         bank_account.commerceRut = self._get_value("rut_comercio")
         bank_account.bankCode = bank_code
         bank_account.ownerFullName = self._get_value("nombre_contacto")
-        bank_account.ownerRut = self._get_value("rut_contacto")  # pending  
+        bank_account.ownerRut = self._get_value("rut_contacto") 
         bank_account.ownerEmail = self._get_value("correo_contacto")
         bank_account.user = "AYC"
         bank_account.accountType = account_type_code
         bank_account.ownerAccountNumber = self._get_value("num_cuenta")
+        bank_account.serviceId = 4
+        bank_account.paymentType = "PAGO EN CUENTA BANCARIA"
 
         # Return bank account object
         return bank_account
@@ -398,8 +399,6 @@ class VolcadoManager:
         return contact
 
     # PENDING: Validar si merchantType es giro
-    # PENDING: rut contacto
-    # PENDING: actividad económica
     def get_integration_branches_data(self) -> IntegrationBranches:
         '''Create a single branch'''
         # Create branch object
@@ -418,14 +417,14 @@ class VolcadoManager:
         # Add simple values from inference
         branches.branchId = None
         branches.mainBranch = True
-        branches.branchVerticalId = 0 # Internal code, not really needed
+        branches.branchVerticalId = 98743 # Internal code, not really needed
         branches.businessName = self._get_value("razon_social")
-        branches.commerceRut = self._get_value("rut_comercio")
-        branches.email = self._get_value("correo_comercio")
+        branches.commerceRut = self._get_value("rut_contacto")
+        branches.email = self._get_value("correo_contacto")
         branches.fantasyName = self._get_value("nombre_fantasia")
         branches.description = ""
-        branches.idMcc = mcc 
-        branches.mobilePhoneNumber = self._get_value("telefono_comercio")
+        branches.idMcc = int(mcc) 
+        branches.mobilePhoneNumber = self._get_value("telefono_contacto")
         branches.name = self._get_value("razon_social")
         branches.webSite = ""
         branches.mantisaBill = self._get_value("rut_comercio")
@@ -435,10 +434,10 @@ class VolcadoManager:
         branches.integrationType = "PRO" # fixed value that will work
         branches.user = "AYC"
         branches.emailContact = self._get_value("correo_contacto")
-        branches.merchantType = mcc # Validate
+        branches.merchantType = int(mcc) # Validate
         branches.commerceContactName = self._get_value("nombre_contacto")
         branches.commerceLegalRepresentativeName = self._get_value("nombre_contacto")
-        branches.commerceLegalRepresentativeRut = self._get_value("rut_contacto") # DOES NOT EXIST!!
+        branches.commerceLegalRepresentativeRut = self._get_value("rut_contacto")
         branches.commerceLegalRepresentativePhone = self._get_value("telefono_contacto") 
 
         # Create address object and assign
@@ -465,7 +464,7 @@ class VolcadoManager:
             terminal = IntegrationTerminals()
             terminal.commerceRut = self._get_value("rut_comercio")
             terminal.branchCode = 0
-            terminal.terminalId = None
+            terminal.terminalId = 0
             terminal.contractId = "0"
             terminal.technology = 20
             terminal.ussdNumber = 0

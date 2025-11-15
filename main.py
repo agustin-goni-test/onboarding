@@ -38,10 +38,14 @@ def main():
     # raw_data = json_result_mockup()
     print("\n\nFin de la inferencia...\n\n")
 
-    manager = VolcadoManager(json.loads(raw_data))
-    # manager.complete_results()
-    manager.complete_results_mockup()
+    manager = VolcadoManager(raw_data)
+    manager.complete_results()
+    # manager.complete_results_mockup()
     manager.display_all_values()
+
+    message = EntidadesVolcado()
+    message = manager.create_volcado_data()
+    print(message.to_json(indent=4))
 
     config = get_kafka_config()
     producer = ConfluentProducerClient(config)
@@ -53,22 +57,23 @@ def main():
     #     "commerceRut": "96806110-0"
     # }
 
-    file_path = "mockups/input.json"
-    with open(file_path, 'r', encoding='utf-8') as f:
-        message_value = json.load(f)
+    # file_path = "mockups/input.json"
+    # with open(file_path, 'r', encoding='utf-8') as f:
+    #     message_value = json.load(f)
 
-    message_key = "comercio-52004084-6"
+    message_key = "comercio-111222333"
+
+    message_dict = json.loads(message.to_json())
+
 
     producer.send_message(
         topic=topic,
         key=message_key,
-        value=message_value
+        value=message_dict
     )
 
     producer.close()
 
-
-    message = manager.create_volcado_data()
     print(message.to_json(indent=4))
 
 
@@ -230,10 +235,7 @@ def _process_pdf_document(pdf_path: str) -> Optional[Dict[str, Any]]:
                 "filename": os.path.basename(pdf_path),
                 "processed_state": "pending",
                 "type": "pdf_text",
-                "content": [
-                    {"text": "Extrae todos los términos buscados del siguiente texto."},
-                    {"text": pdf_text} 
-                ]
+                "content": pdf_text
             }
             return pdf_document
         
@@ -257,10 +259,7 @@ def _process_image_document(image_path: str) -> Optional[Dict[str, Any]]:
                 "filename": os.path.basename(image_path),
                 "processed_state": "pending",
                 "type": "text",
-                "content": [
-                    {"text": "Extrae todos los términos buscados del siguiente texto."},
-                    {"text": ocr_text} 
-                ]
+                "content": ocr_text
             }
             return image_document
         
