@@ -228,7 +228,6 @@ class VolcadoManager:
         # Obtain RUT for the next steps
         rut = self._get_value("rut_comercio")
 
-
         # Create a commerce, bank account and contact
         commerce = self.get_integration_commerce_data()
         bank_account = self.get_integration_bank_account_data()
@@ -260,9 +259,11 @@ class VolcadoManager:
         commerce.businessName = self._get_value("razon_social")
         commerce.fantasyName = self._get_value("nombre_fantasia")
         commerce.businessLine = 497 # pending
-        commerce.origin = "AUTOAFILIACION POS"
+        commerce.origin = "AUTOAFILIACION_POS"
         commerce.email = self._get_value("correo_contacto")
         commerce.emailPayment = self._get_value("correo_contacto")
+        commerce.mobilePhoneNumber = self._get_value("telefono_contacto")
+
 
         # Obtain parts of the name (use contact name)
         integration_name = self._obtain_parts_of_name(self._get_value("nombre_contacto"))
@@ -275,6 +276,7 @@ class VolcadoManager:
         # Set fixed parameters
         commerce.sellerRut = "5-1"
         commerce.user = "AYC"
+        commerce.obs = ""
         
         # Create the address information. Move this to a new external method
         # Use helper method
@@ -419,7 +421,7 @@ class VolcadoManager:
         branches.mainBranch = True
         branches.branchVerticalId = 98743 # Internal code, not really needed
         branches.businessName = self._get_value("razon_social")
-        branches.commerceRut = self._get_value("rut_contacto")
+        branches.commerceRut = self._get_value("rut_comercio")
         branches.email = self._get_value("correo_contacto")
         branches.fantasyName = self._get_value("nombre_fantasia")
         branches.description = ""
@@ -427,11 +429,11 @@ class VolcadoManager:
         branches.mobilePhoneNumber = self._get_value("telefono_contacto")
         branches.name = self._get_value("razon_social")
         branches.webSite = ""
-        branches.mantisaBill = self._get_value("rut_comercio")
-        branches.dvBill = (self._get_value("rut_comercio")).split("-")[1]
+        branches.mantisaBill = self._get_value("rut_contacto")
+        branches.dvBill = (self._get_value("rut_contacto")).split("-")[1]
         branches.bankAccount = self._get_value("num_cuenta")
-        branches.mantisaHolder = self._get_value("rut_comercio")
-        branches.integrationType = "PRO" # fixed value that will work
+        branches.mantisaHolder = self._get_value("rut_contacto")
+        branches.integrationType = "PRO MAX" # fixed value that will work
         branches.user = "AYC"
         branches.emailContact = self._get_value("correo_contacto")
         branches.merchantType = int(mcc) # Validate

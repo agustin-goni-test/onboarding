@@ -316,7 +316,7 @@ class BFFComercio:
     def get_giro_and_mcc(self, code: int) -> Tuple[int, int]:
         '''Obtain values from service'''
         json_response = self.fetch_mcc_info(code)
-        mcc = json_response[0].get("mcc")
+        mcc = json_response[0].get("idMcc")
         giro = json_response[0].get("idGiro")
         return mcc, giro
         

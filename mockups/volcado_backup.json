@@ -1,0 +1,127 @@
+{
+    "integrationCommerce": {
+        "commerceRut": "76459756-7",
+        "businessName": "COMERCIAL LUMOS LIMITADA",
+        "businessLine": 292,
+        "origin": "AUTOAFILIACION_POS",
+        "email": "administración@quintanaauco.cl",
+        "emailPayment": "administración@quintanaauco.cl",
+        "fantasyName": "COMERCIAL LUMOS LIMITADA",
+        "name": "JIENAN",
+        "lastName": "GUAN",
+        "mothersLastName": "GUAN",
+        "mobilePhoneNumber": "912345678",
+        "sellerRut": "5-1",
+        "user": "AYC",
+        "integrationAddress": {
+            "region": 13,
+            "comune": 95,
+            "number": "720",
+            "fullAddress": [
+                "AVDA SALESIANOS 720",
+                " SAN MIGUEL",
+                " METROPOLITANA DE SANTIAGO"
+            ],
+            "addressWithoutNumber": "AVDA SALESIANOS"
+        },
+        "obs": ""
+    },
+    "integrationBankAccount": {
+        "commerceRut": "76459756-7",
+        "bankCode": 16,
+        "ownerFullName": "JIENAN GUAN",
+        "ownerRut": "9743043-8",
+        "ownerEmail": "administración@quintanaauco.cl",
+        "user": "AYC",
+        "accountType": 2,
+        "ownerAccountNumber": "24031186",
+        "serviceId": 4,
+        "paymentType": "PAGO EN CUENTA BANCARIA"
+    },
+    "integrationContact": {
+        "commerceRut": "76459756-7",
+        "legalRepresentative": false,
+        "names": "JIENAN",
+        "lastName": "GUAN",
+        "secondLastName": "GUAN",
+        "rut": "9743043-8",
+        "email": "administración@quintanaauco.cl",
+        "phone": "912345678",
+        "serialNumber": "522637943",
+        "sign": true,
+        "third": false,
+        "user": "AYC",
+        "signAllowed": false
+    },
+    "integrationBranches": [
+        {
+            "branchId": null,
+            "mainBranch": true,
+            "branchVerticalId": 98743,
+            "integrationAddress": {
+                "region": 13,
+                "comune": 95,
+                "number": "720",
+                "fullAddress": [
+                    "AVDA SALESIANOS 720",
+                    " SAN MIGUEL",
+                    " METROPOLITANA DE SANTIAGO"
+                ],
+                "addressWithoutNumber": "AVDA SALESIANOS"
+            },
+            "businessName": "COMERCIAL LUMOS LIMITADA",
+            "commerceRut": "76459756-7",
+            "email": "administración@quintanaauco.cl",
+            "fantasyName": "COMERCIAL LUMOS LIMITADA",
+            "description": "",
+            "idMcc": 133,
+            "mobilePhoneNumber": "912345678",
+            "name": "COMERCIAL LUMOS LIMITADA",
+            "webSite": "",
+            "mantisaBill": "9743043-8",
+            "dvBill": "8",
+            "bankAccount": "24031186",
+            "mantisaHolder": "9743043-8",
+            "integrationType": "PRO MAX",
+            "user": "AYC",
+            "emailContact": "administración@quintanaauco.cl",
+            "merchantType": 133,
+            "commerceContactName": "JIENAN GUAN",
+            "commerceLegalRepresentativeName": "JIENAN GUAN",
+            "commerceLegalRepresentativeRut": "9743043-8",
+            "commerceLegalRepresentativePhone": "912345678",
+            "integrationTerminals": [
+                {
+                    "commerceRut": "76459756-7",
+                    "branchCode": 0,
+                    "terminalId": 0,
+                    "contractId": "0",
+                    "technology": 20,
+                    "ussdNumber": 0,
+                    "user": "AYC",
+                    "obs": "-SIM: CLARO -MODELO: POSANDROIDMOVIL -CANAL: AUTOAFILIACION. CANAL_ORIGEN: AUTOAFILIACION_POS ",
+                    "additionalInfo": "",
+                    "serviceId": 4,
+                    "sellerRut": "5-1",
+                    "terminalNumber": "0",
+                    "configurationType": "RED_POS"
+                },
+                {
+                    "commerceRut": "76459756-7",
+                    "branchCode": 0,
+                    "terminalId": 0,
+                    "contractId": "0",
+                    "technology": 20,
+                    "ussdNumber": 0,
+                    "user": "AYC",
+                    "obs": "-SIM: CLARO -MODELO: POSANDROIDMOVIL -CANAL: AUTOAFILIACION. CANAL_ORIGEN: AUTOAFILIACION_POS ",
+                    "additionalInfo": "",
+                    "serviceId": 4,
+                    "sellerRut": "5-1",
+                    "terminalNumber": "0",
+                    "configurationType": "RED_POS"
+                }
+            ]
+        }
+    ]
+}

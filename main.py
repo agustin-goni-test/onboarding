@@ -25,23 +25,108 @@ def main():
 
     logger.debug("We are in DEBUG mode...")
 
-    # Create LLM for the agent and Gemini client
+    # Do inference process
+    raw_data = run_inference_stage()
+    
+    ################################################################
+    ################################################################
+    # Acá estamos cambiando el RUT para poder hacer una prueba!!!
+    ################################################################
+    ################################################################
+
+    raw_data["rut_comercio"]["value"] = "65557820-K"
+
+    ################################################################
+    ################################################################
+    # Eliminar esto!!!
+    ################################################################
+    ################################################################
+
+    message_dict = create_integration_data(raw_data)
+    # message_dict = get_test_message()
+
+    # print(json.dumps(message_dict, indent=4))
+
+
+    
+
+    # # Create LLM for the agent and Gemini client
+    # llm = create_llm()
+    # client = genai.Client(api_key=os.getenv("LLM_API_KEY"))
+    
+    # # Create agent and call method to set up initial state
+    # agent = DocumentCaptureAgent(llm, client, process_batch=True)
+    # initial_graph_state = agent.prepare_initial_state()
+
+    # # Find the final state (invoke the agent)
+    # final_state = agent.do_capture(initial_graph_state)
+
+    # raw_data = final_state["results"]
+    # # raw_data = json_result_mockup()
+    # print("\n\nFin de la inferencia...\n\n")
+    # input("Presione una tecla para continuar...")
+
+
+    # manager = VolcadoManager(raw_data)
+    # manager.complete_results()
+    # # manager.complete_results_mockup()
+    # manager.display_all_values()
+
+    # message = EntidadesVolcado()
+    # message = manager.create_volcado_data()
+    # print(message.to_json(indent=4))
+
+    success = send_message_to_topic(message_dict)
+
+
+    # config = get_kafka_config()
+    # producer = ConfluentProducerClient(config)
+
+    # topic = "sop-af-ayc-volcado-centrales-integracion"
+
+    # # message_value = {
+    # #     "commerceRut": "96806110-0"
+    # # }
+
+    # # file_path = "mockups/input.json"
+    # # with open(file_path, 'r', encoding='utf-8') as f:
+    # #     message_value = json.load(f)
+
+    # message_key = "comercio-1112223334"
+
+    # # message_dict = json.loads(message.to_json())
+
+
+    # producer.send_message(
+    #     topic=topic,
+    #     key=message_key,
+    #     value=message_dict
+    # )
+
+    # producer.close()
+
+    # print(message_dict)
+
+
+def run_inference_stage() -> Dict[str, Any]:
     llm = create_llm()
     client = genai.Client(api_key=os.getenv("LLM_API_KEY"))
-    
+
     # Create agent and call method to set up initial state
-    agent = DocumentCaptureAgent(llm, client, process_batch=True)
+    agent = DocumentCaptureAgent(llm, client, process_batch=False)
     initial_graph_state = agent.prepare_initial_state()
 
-    # Find the final state (invoke the agent)
+     # Find the final state (invoke the agent)
     final_state = agent.do_capture(initial_graph_state)
 
     raw_data = final_state["results"]
-    # raw_data = json_result_mockup()
     print("\n\nFin de la inferencia...\n\n")
     input("Presione una tecla para continuar...")
 
+    return raw_data
 
+
+def create_integration_data(raw_data: Dict[str, Any]):
     manager = VolcadoManager(raw_data)
     manager.complete_results()
     # manager.complete_results_mockup()
@@ -51,44 +136,91 @@ def main():
     message = manager.create_volcado_data()
     print(message.to_json(indent=4))
 
-    config = get_kafka_config()
-    producer = ConfluentProducerClient(config)
-
-    # topic = "sop-af-ayc-firma"
-    topic = "sop-af-ayc-volcado-centrales-integracion"
-
-    # message_value = {
-    #     "commerceRut": "96806110-0"
-    # }
-
-    # file_path = "mockups/input.json"
-    # with open(file_path, 'r', encoding='utf-8') as f:
-    #     message_value = json.load(f)
-
-    message_key = "comercio-111222333"
+    file_path = "mockups/volcado.json"
 
     message_dict = json.loads(message.to_json())
 
+    # Save to output for validation
+    with open(file_path, 'w', encoding='utf-8') as f:
+        json.dump(message_dict, f, ensure_ascii=False, indent=4)
 
+    print("\n\nArchivo de entidades de volcado grabado correctamente.\n\n")
+    input("Presione una tecla para continuar...")
+
+    return message_dict
+
+
+def send_message_to_topic(message_dict: Dict[str, Any]):
+    '''Method to send a message to the Kafka integration topic'''
+
+    # Get configuration and create producer based on this configuration
+    config = get_kafka_config()
+    producer = ConfluentProducerClient(config)
+
+    # Select the topic to send message to
+    # topic = "sop-af-ayc-volcado-centrales-integracion"
+    topic = os.getenv("TOPIC")
+
+    # Use ID as part of the message key
+    rut = message_dict["integrationCommerce"]["commerceRut"]
+    message_key = f"comercio-{rut}"
+
+    # Send message
     producer.send_message(
         topic=topic,
         key=message_key,
         value=message_dict
     )
 
+    # Close producer
     producer.close()
 
-    print(message.to_json(indent=4))
 
 
-def get_kafka_config() -> Dict[str, Any]:
+
+def get_test_message():
+    file_path = "mockups/volcado.json"
+    with open(file_path, 'r', encoding='utf-8') as f:
+        message_value = json.load(f)
+
+    return message_value
+    
+
+
+
+
+
+
+
+def get_kafka_config(environment: str = "dev") -> Dict[str, Any]:
+    '''Method to obtain the correct configuration for Confluent'''
+
+    boostrap_servers = os.getenv("BOOTSTRAP_SERVERS")
+    security_protocol = os.getenv("SECURITY_PROTOCOL", "SASL_SSL")
+    sasl_mechanism = os.getenv("SASL_MECHANISM", "PLAIN")
+
+    if environment == "dev":
+        sasl_username = os.getenv("SASL_USERNAME")
+        sasl_password = os.getenv("SASL_PASSWORD")
+
+    elif environment == "qa":
+        sasl_username = os.getenv("SASL_USERNAME_QA")
+        sasl_password = os.getenv("SASL_PASSWORD_QA")
+
+    else:
+        print("No está claro el ambiente al que debe apuntar la conexión del productor... abortando")
+        return None
+
+    client_id = os.getenv("CLIENT_ID")  
+
+    # Create configuration based on environment
     kafka_producer_config: Dict[str, Any] = {
-        'bootstrap.servers': 'pkc-p11xm.us-east-1.aws.confluent.cloud:9092',
-        'security.protocol': 'SASL_SSL',
-        'sasl.mechanism': 'PLAIN',
-        'sasl.username': '3DMA6VIPHQA7R2VA',
-        'sasl.password': 'UtrhdrSmV8xq9nZligCU5GZpm+7lbn3GbIzrkoqErmtIg2WW16Qvu7wV/7Dd9+Vw',
-        'client.id': 'CommerceProducer'
+        'bootstrap.servers': boostrap_servers,
+        'security.protocol': security_protocol,
+        'sasl.mechanism': sasl_mechanism,
+        'sasl.username': sasl_username,
+        'sasl.password': sasl_password,
+        'client.id': client_id
     }
 
     return kafka_producer_config
