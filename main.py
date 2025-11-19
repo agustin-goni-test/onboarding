@@ -41,8 +41,8 @@ def main():
     ################################################################
     ################################################################
 
-    # logger.info("\n----AJUSTANDO RUT PARA PODER EJECUTAR UNA PRUEBA---\n")
-    # raw_data["rut_comercio"]["value"] = "78000292-1"
+    logger.info("\n----AJUSTANDO RUT PARA PODER EJECUTAR UNA PRUEBA---\n")
+    raw_data["rut_comercio"]["value"] = "78000292-1"
 
     ################################################################
     ################################################################

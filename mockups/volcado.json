@@ -1,6 +1,6 @@
 {
     "integrationCommerce": {
-        "commerceRut": "77929897-3",
+        "commerceRut": "78000292-1",
         "businessName": "COMERCIAL LUMOS LIMITADA",
         "businessLine": 497,
         "origin": "AUTOAFILIACION_POS",
@@ -27,7 +27,7 @@
         "obs": ""
     },
     "integrationBankAccount": {
-        "commerceRut": "77929897-3",
+        "commerceRut": "78000292-1",
         "bankCode": 16,
         "ownerFullName": "AGUSTÍN GONI GONZÁLEZ",
         "ownerRut": "9743043-8",
@@ -39,7 +39,7 @@
         "paymentType": "PAGO EN CUENTA BANCARIA"
     },
     "integrationContact": {
-        "commerceRut": "77929897-3",
+        "commerceRut": "78000292-1",
         "legalRepresentative": false,
         "names": "AGUSTÍN",
         "lastName": "GONI",
@@ -70,7 +70,7 @@
                 "addressWithoutNumber": "AVDA SALESIANOS"
             },
             "businessName": "COMERCIAL LUMOS LIMITADA",
-            "commerceRut": "77929897-3",
+            "commerceRut": "78000292-1",
             "email": "agustingoni@gmail.com",
             "fantasyName": "COMERCIAL LUMOS LIMITADA",
             "description": "",
@@ -92,7 +92,7 @@
             "commerceLegalRepresentativePhone": "912345678",
             "integrationTerminals": [
                 {
-                    "commerceRut": "77929897-3",
+                    "commerceRut": "78000292-1",
                     "branchCode": 0,
                     "terminalId": 0,
                     "contractId": "0",
@@ -107,7 +107,7 @@
                     "configurationType": "RED_POS"
                 },
                 {
-                    "commerceRut": "77929897-3",
+                    "commerceRut": "78000292-1",
                     "branchCode": 0,
                     "terminalId": 0,
                     "contractId": "0",
