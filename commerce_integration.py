@@ -172,6 +172,18 @@ class VolcadoManager:
         else:
             return node.get("value", default)
         
+    def _set_value(self, field_key: str, value: Any):
+        '''
+        Helper method to set values in the results of the inference.
+        Handles InformationNode structure.
+        '''
+        node = self.results.get(field_key)
+        if node:
+            node["value"] = value
+
+        else:
+           raise Exception("No existe el campo especificado")
+        
     def complete_results(self) -> Dict[str, Any]:
         missing_fields = []
         
@@ -182,7 +194,7 @@ class VolcadoManager:
 
         # If found, ask the user to provide them
         if missing_fields:
-            print("Debemos completar la información obtenida desde la inferencia")
+            print("Debemos completar la información obtenida desde la inferencia\n")
 
             for field_name in missing_fields:
                 data = input(f"Ingrese un valor para {field_name}: ")
@@ -227,6 +239,8 @@ class VolcadoManager:
 
         # Obtain RUT for the next steps
         rut = self._get_value("rut_comercio")
+        clean_rut = rut.replace(".", "")
+        self._set_value("rut_comercio", clean_rut)
 
         # Create a commerce, bank account and contact
         commerce = self.get_integration_commerce_data()

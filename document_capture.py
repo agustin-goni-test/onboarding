@@ -156,15 +156,21 @@ class DocumentCaptureAgent:
             elapsed_time_message = timer.report_time_elapsed(process_timer, "proceso de inferencia completo")
             self.logger.info(elapsed_time_message)
 
+        # In case we're processing in batch, we go through this branch
         else:
+            # Measure time
             batch_timer = timer.start_measurement()
             uploaded_files = []
+
+            # Obtain the identifier for each document
             for document in documents:
                 file = self.client.files.get(name=document["reference"])
                 uploaded_files.append(file)
 
+            # Create the prompt (same as before)
             prompt = self.build_extraction_prompt(fields)
 
+            # Add all the file ids in the content
             contents = [prompt] + uploaded_files
             response = self.client.models.generate_content(
                 model=os.getenv("LLM_MODEL"),
@@ -176,6 +182,7 @@ class DocumentCaptureAgent:
             json_response = self.normalize_fields(content_json, fields)
             state["extracted_info_batch"] = json_response
 
+            # Measure and report time
             batch_message = timer.report_time_elapsed(batch_timer, "proceso de inferencia completo")
             self.logger.info(batch_message)
                 
@@ -263,8 +270,9 @@ class DocumentCaptureAgent:
         - explanation must reference **where** or **how** the model inferred the value
         (e.g., “Found in line about business owner: ‘Razon social:…’”).
         - confidence is 0–100. Use higher confidence when text is direct and explicit.
-        - If a paramter is had "rut" in the name, express the value without '.' in it, no matter how it comes
+        - If a field has "rut" in its name, express the value without '.' in it, no matter how it comes
         (e.g. if it is '10.345.678-2', express it as '10345678-2').
+        - one-word values for fields must start with an uppercase or be all caps (only if this is how they appeared in the document)
         -'num_serie' must also be expressed with no '.' in it (e.g., instead of '123.456.789', express it as '123456789').
         - If inferred but not explicit, match=true but confidence must be <70 and explanation must state inference.
         - DO NOT hallucinate values not suggested in the text.
@@ -290,7 +298,6 @@ class DocumentCaptureAgent:
         if self.process_batch:
             state["results"] = state["extracted_info_batch"]
             return state
-
 
         extracted = state.get("extracted_information", {})
         fields = state.get("all_fields", {})
@@ -400,12 +407,14 @@ class DocumentCaptureAgent:
         # Search all fields whose confidence is below a threshold
         low_confidence = self.find_low_confidence_fields(state)
         
+        # If we are not executing in batch mode, check for also for multiple values
         if not self.process_batch:
             multiple_values = self.find_multiple_value_fields(state)
 
-        # If no field is low in confidence
-        if not low_confidence:
-            print("Ningún campo con poca confianza...")
+            # If no field is low in confidence and no field has multiple values, return   
+            if not low_confidence and not multiple_values:
+                self.logger.info("Ningún campo con poca confianza o multiples valores encontrados...")
+                return state
         
         # If some fields are low in confidence, review them
         for item in low_confidence:
@@ -466,12 +475,14 @@ class DocumentCaptureAgent:
         value = item["value"]
         confidence = item["confidence"]
 
+        # Show a field detected with low confidence
         print(f"\nCampo '{field}' detectado con menor confianza que el mínimo.")
         print(f"Valor actual: {value} --- Confianza: {confidence}%")
         print("Soluciones posibles:")
         print("1. Mantener el valor actual")
         print("2. Ingresar un valor distinto")
 
+        # Offer to maintain the value or input a new one
         solved = False
         while not solved:
             option = input("Seleccionar la preferencia: ")
@@ -519,6 +530,7 @@ class DocumentCaptureAgent:
         field = item["field"]
         values = item["values"]
 
+        # Show a field with more than one value and request disambiguation to user
         print(f"\nCampo {field} tiene más de un valor posible y requiere aclaración.")
         print("Valores encontrados:")
         for value in values:
@@ -533,6 +545,7 @@ class DocumentCaptureAgent:
         option = input("Seleccionar la opción: ")
         option_int = int(option)
 
+        # Keep one of the found values or input a new one
         solved = False
         while not solved:
             if option_int > 0 and option_int < position:
@@ -555,6 +568,9 @@ class DocumentCaptureAgent:
     
 
     def enough_information(self, state: DocumentCaptureState) -> DocumentCaptureState:
+        '''This method definies whether the current state already contains enough information.
+        If the inference process captured all fields, information is enough. If not, there will
+        be another iteration only if there are new documents to analyze.'''
         self.logger.info("---STATE: ENOUGH INFORMATION---")
 
         # Create a list of missing fields and update iteration count
@@ -577,11 +593,14 @@ class DocumentCaptureAgent:
     
 
     def route_sufficient_info(self, state: DocumentCaptureState) -> str:
+        '''This method is used to create a definition concerning whether
+        a new iteration is needed.'''
         self.logger.info("---STATE: ROUTE SUFFICIENT INFO---")
 
         # Determine iteration condition
         is_sufficient = "sufficient" if state["sufficient_info"] else "not_sufficient"
 
+        # In case we don't have sufficient information, determine if there are new documents
         if not state["sufficient_info"]:
             amount_of_documents = len(self.doc_hub.document_list)
             self.doc_hub.load_documents()
@@ -600,11 +619,14 @@ class DocumentCaptureAgent:
         '''This is where the user signs off on the data'''
         self.logger.info("---STATE: FINAL APPROVAL---")
 
+        # Capture results in the state
         results = state["results"]
 
+        # Print out the values captured
         print("\n\nLista de datos obtenidos:\n")
         for field, result in results.items():
             print(f"{field}: {result["value"]}")
+        print("\n")
 
         return state
     
@@ -617,6 +639,7 @@ class DocumentCaptureAgent:
     
 
     def do_capture(self, initial_state: DocumentCaptureState) -> DocumentCaptureState:
+        '''This method creates the inference cycle'''
         final_state = self.graph.invoke(initial_state)
         return final_state
     
@@ -634,9 +657,11 @@ class DocumentCaptureAgent:
 
         self.logger.info("Preparando el estado inicial para el agente...")
 
+        # Upload documentos for later processing
         self.doc_hub.load_documents()
         document_list = self.doc_hub.document_list
 
+        # Field list definition
         fields = {
             "rut_comercio": "El RUT que identifica el comercio o empresa que se afilia. DEBE contener guión (ejemplo '4.567.389-1' o '45768945-4')",
             "razon_social": "Nombre legal o razón social del comercio, asociado al RUT registrado",
@@ -651,7 +676,7 @@ class DocumentCaptureAgent:
             "representante_legal": "Representante legal del comercio o sociedad",
             "constitucion": "Accionistas del comercio y porcentaje de la operación que tengan",
             "num_cuenta": "Número de cuenta identificada para el comercio",
-            "tipo_cuenta": "Tipo de la cuenta declarada por el comercio. Indicar sólo el tipo, omitir la palabra cuenta (ejemplo: 'ahorro' en vez de 'cuenta de ahorro' o 'cuenta ahorro')",
+            "tipo_cuenta": "Tipo de la cuenta declarada por el comercio. Indicar sólo el tipo, omitir la palabra cuenta (ejemplo: 'Ahorro' en vez de 'Cuenta de Ahorro' o 'Cuenta Ahorro')",
             "banco": "Banco al que pertenece la cuenta encontrada para el comercio",
             "nombre_cuenta": "Nombre del titular de la cuenta. Si no existe, asumir que es el representante legal, con confianza de 50"
             # ... other fields

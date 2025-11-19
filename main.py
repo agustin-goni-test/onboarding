@@ -14,19 +14,26 @@ import pytesseract
 from logger import Logger
 from dotenv import load_dotenv
 from clients.kafka_producer import ConfluentProducerClient
+from utils import TimeMeasure
+
 
 
 load_dotenv()
 
 logger = Logger()
+timer = TimeMeasure()
 
 def main():
     '''Main logic here'''
 
     logger.debug("We are in DEBUG mode...")
+    logger.info("\n-----EMPEZANDO PROCESO DE CAPTURA DE DATOS-------\n")
+    id = timer.start_measurement()
+
 
     # Do inference process
     raw_data = run_inference_stage()
+    logger.info("\n-----FIN DE PROCESO DE CAPTURA DE DATOS-------\n")
     
     ################################################################
     ################################################################
@@ -34,7 +41,8 @@ def main():
     ################################################################
     ################################################################
 
-    raw_data["rut_comercio"]["value"] = "65557820-K"
+    # logger.info("\n----AJUSTANDO RUT PARA PODER EJECUTAR UNA PRUEBA---\n")
+    # raw_data["rut_comercio"]["value"] = "78000292-1"
 
     ################################################################
     ################################################################
@@ -42,6 +50,7 @@ def main():
     ################################################################
     ################################################################
 
+    logger.info("\n----CREANDO OBJETO PARA VOLCADO----\n1")
     message_dict = create_integration_data(raw_data)
     # message_dict = get_test_message()
 
@@ -76,7 +85,14 @@ def main():
     # message = manager.create_volcado_data()
     # print(message.to_json(indent=4))
 
+    message = timer.calculate_time_elapsed(id)
+    logger.info(message)
+
+    logger.info("\n----ENVÍO DE MENSAJE A TÓPICO DE INTEGRACIÓN PARA VOLCAR----\n")
     success = send_message_to_topic(message_dict)
+
+    message = timer.calculate_time_elapsed(id)
+    logger.info(message)
 
 
     # config = get_kafka_config()
@@ -121,7 +137,7 @@ def run_inference_stage() -> Dict[str, Any]:
 
     raw_data = final_state["results"]
     print("\n\nFin de la inferencia...\n\n")
-    input("Presione una tecla para continuar...")
+    input("Presione una tecla para continuar...\n\n")
 
     return raw_data
 
@@ -145,7 +161,7 @@ def create_integration_data(raw_data: Dict[str, Any]):
         json.dump(message_dict, f, ensure_ascii=False, indent=4)
 
     print("\n\nArchivo de entidades de volcado grabado correctamente.\n\n")
-    input("Presione una tecla para continuar...")
+    input("Presione una tecla para continuar...\n\n")
 
     return message_dict
 
