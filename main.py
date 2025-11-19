@@ -17,7 +17,6 @@ from clients.kafka_producer import ConfluentProducerClient
 from utils import TimeMeasure
 
 
-
 load_dotenv()
 
 logger = Logger()
@@ -56,35 +55,6 @@ def main():
 
     # print(json.dumps(message_dict, indent=4))
 
-
-    
-
-    # # Create LLM for the agent and Gemini client
-    # llm = create_llm()
-    # client = genai.Client(api_key=os.getenv("LLM_API_KEY"))
-    
-    # # Create agent and call method to set up initial state
-    # agent = DocumentCaptureAgent(llm, client, process_batch=True)
-    # initial_graph_state = agent.prepare_initial_state()
-
-    # # Find the final state (invoke the agent)
-    # final_state = agent.do_capture(initial_graph_state)
-
-    # raw_data = final_state["results"]
-    # # raw_data = json_result_mockup()
-    # print("\n\nFin de la inferencia...\n\n")
-    # input("Presione una tecla para continuar...")
-
-
-    # manager = VolcadoManager(raw_data)
-    # manager.complete_results()
-    # # manager.complete_results_mockup()
-    # manager.display_all_values()
-
-    # message = EntidadesVolcado()
-    # message = manager.create_volcado_data()
-    # print(message.to_json(indent=4))
-
     message = timer.calculate_time_elapsed(id)
     logger.info(message)
 
@@ -95,36 +65,9 @@ def main():
     logger.info(message)
 
 
-    # config = get_kafka_config()
-    # producer = ConfluentProducerClient(config)
-
-    # topic = "sop-af-ayc-volcado-centrales-integracion"
-
-    # # message_value = {
-    # #     "commerceRut": "96806110-0"
-    # # }
-
-    # # file_path = "mockups/input.json"
-    # # with open(file_path, 'r', encoding='utf-8') as f:
-    # #     message_value = json.load(f)
-
-    # message_key = "comercio-1112223334"
-
-    # # message_dict = json.loads(message.to_json())
-
-
-    # producer.send_message(
-    #     topic=topic,
-    #     key=message_key,
-    #     value=message_dict
-    # )
-
-    # producer.close()
-
-    # print(message_dict)
-
-
 def run_inference_stage() -> Dict[str, Any]:
+    '''Coordinate inference stage'''
+
     llm = create_llm()
     client = genai.Client(api_key=os.getenv("LLM_API_KEY"))
 
@@ -135,6 +78,7 @@ def run_inference_stage() -> Dict[str, Any]:
      # Find the final state (invoke the agent)
     final_state = agent.do_capture(initial_graph_state)
 
+    # Obtain the resulting data of the inference
     raw_data = final_state["results"]
     print("\n\nFin de la inferencia...\n\n")
     input("Presione una tecla para continuar...\n\n")
@@ -143,18 +87,24 @@ def run_inference_stage() -> Dict[str, Any]:
 
 
 def create_integration_data(raw_data: Dict[str, Any]):
+    '''Create data to send for the integration process'''
+    
+    # Create manager and launch routine to complete results
     manager = VolcadoManager(raw_data)
     manager.complete_results()
     # manager.complete_results_mockup()
+
+    # Display values
     manager.display_all_values()
 
+    # Create business entities
     message = EntidadesVolcado()
     message = manager.create_volcado_data()
     print(message.to_json(indent=4))
-
-    file_path = "mockups/volcado.json"
-
     message_dict = json.loads(message.to_json())
+
+    # Path to save the output before using it for the integration layer
+    file_path = "mockups/volcado.json"
 
     # Save to output for validation
     with open(file_path, 'w', encoding='utf-8') as f:
@@ -193,7 +143,6 @@ def send_message_to_topic(message_dict: Dict[str, Any]):
 
 
 
-
 def get_test_message():
     file_path = "mockups/volcado.json"
     with open(file_path, 'r', encoding='utf-8') as f:
@@ -202,19 +151,15 @@ def get_test_message():
     return message_value
     
 
-
-
-
-
-
-
 def get_kafka_config(environment: str = "dev") -> Dict[str, Any]:
     '''Method to obtain the correct configuration for Confluent'''
 
+    # Obtain parameters from config
     boostrap_servers = os.getenv("BOOTSTRAP_SERVERS")
     security_protocol = os.getenv("SECURITY_PROTOCOL", "SASL_SSL")
     sasl_mechanism = os.getenv("SASL_MECHANISM", "PLAIN")
 
+    # Determine environmente for user and password
     if environment == "dev":
         sasl_username = os.getenv("SASL_USERNAME")
         sasl_password = os.getenv("SASL_PASSWORD")
@@ -243,6 +188,7 @@ def get_kafka_config(environment: str = "dev") -> Dict[str, Any]:
 
         
 
+###### NO LONGER IN USE??? #####################
 def create_llm() -> ChatGoogleGenerativeAI:
     api_key = os.getenv("LLM_API_KEY")
     model = os.getenv("LLM_MODEL")
@@ -256,6 +202,7 @@ def create_llm() -> ChatGoogleGenerativeAI:
     return llm
 
 
+###### NO LONGER IN USE??? #####################
 def pdf_to_text(file_path: str) -> str:
     '''Reads the content of a PDF file and returns it as text'''
     try:
@@ -270,11 +217,14 @@ def pdf_to_text(file_path: str) -> str:
         return ""
     
 
+###### NO LONGER IN USE??? #####################
 def read_image_and_encode(file_path: str) -> str:
     '''Reads an image file and returns its Base64 encoded string.'''
     with open(file_path, "rb") as image_file:
         return base64.b64encode(image_file.read()).decode('utf-8')
     
+
+###### NO LONGER IN USE??? #####################
 def ocr_base64_image(file_path, langs="spa+eng"):
     # Decode base64
     with open(file_path, "rb") as image_file:
@@ -299,6 +249,7 @@ def get_mime_type(filename: str) -> str:
     return "application/octet-stream"
 
 
+# This method is now part of the DocumentCaptureAgent. Disregard this
 def prepare_initial_state() -> DocumentCaptureState:
     '''
     This is the method that reads the source files and formats them.
